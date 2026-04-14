@@ -1,0 +1,1906 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Todor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .titlebar {
+      -webkit-app-region: drag;
+      height: 38px;
+      background: #16213e;
+      flex-shrink: 0;
+    }
+
+    .tabs {
+      display: flex;
+      background: #16213e;
+      border-bottom: 1px solid #0f3460;
+      flex-shrink: 0;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 10px 16px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #667;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .tab:hover { color: #aab; }
+
+    .tab.active {
+      color: #009900;
+      border-bottom-color: #009900;
+    }
+
+    #tab-active.active {
+      color: #e94560;
+      border-bottom-color: #e94560;
+    }
+
+    .tab .count {
+      display: inline-block;
+      background: #0f3460;
+      color: #8899aa;
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      margin-left: 6px;
+    }
+
+    .tab.active .count {
+      background: #009900;
+      color: white;
+    }
+
+    #tab-active.active .count {
+      background: #e94560;
+    }
+
+    .container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .add-bar {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      background: #16213e;
+      border-top: 1px solid #0f3460;
+      flex-shrink: 0;
+    }
+
+    .add-bar input {
+      flex: 1;
+      background: #1a1a2e;
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: #e0e0e0;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .add-bar input:focus { border-color: #009900; }
+
+    .add-bar button {
+      background: #009900;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .add-bar button:hover { background: #007700; }
+
+    .todo-item {
+      margin-bottom: 2px;
+    }
+
+    .todo-item.drag-over-above { border-top: 2px solid #009900; }
+    .todo-item.drag-over-below { border-bottom: 2px solid #009900; }
+    .todo-item.dragging { opacity: 0.3; }
+
+    .drag-handle {
+      width: 14px;
+      font-size: 11px;
+      color: #334;
+      cursor: grab;
+      text-align: center;
+      flex-shrink: 0;
+      user-select: none;
+      line-height: 1;
+    }
+
+    .drag-handle:hover { color: #889; }
+    .drag-handle:active { cursor: grabbing; }
+
+    .todo-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .todo-row:hover { background: #16213e; }
+    .todo-row:hover .drag-handle { color: #667; }
+
+    .todo-row.selected { background: #0f3460; outline: 1px solid #1a4a8a; }
+
+    .todo-row.completed .todo-text {
+      text-decoration: line-through;
+      opacity: 0.5;
+    }
+
+    .checkbox {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #0f3460;
+      border-radius: 4px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .checkbox.checked {
+      background: #009900;
+      border-color: #009900;
+    }
+
+    .checkbox.checked::after {
+      content: "\2713";
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .checkbox.readonly {
+      cursor: default;
+      opacity: 0.6;
+    }
+
+    .todo-text {
+      flex: 1;
+      font-size: 14px;
+    }
+
+    .todo-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .todo-row:hover .todo-actions { opacity: 1; }
+
+    .todo-actions button {
+      background: none;
+      border: none;
+      color: #667;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .todo-actions button:hover { background: #0f3460; color: #e0e0e0; }
+
+    .expand-arrow {
+      width: 16px;
+      font-size: 10px;
+      color: #667;
+      cursor: pointer;
+      text-align: center;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .children {
+      margin-left: 26px;
+      border-left: 1px solid #0f3460;
+      padding-left: 8px;
+    }
+
+    .notes-area {
+      margin: 4px 0 4px 42px;
+      padding: 8px;
+      background: #16213e;
+      border-radius: 6px;
+      border: 1px solid #0f3460;
+    }
+
+    .notes-area textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: #c0c0c0;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 40px;
+      outline: none;
+    }
+
+    .notes-display {
+      margin: 4px 0 4px 42px;
+      padding: 8px;
+      background: #16213e;
+      border-radius: 6px;
+      border: 1px solid #0f3460;
+      color: #889;
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+
+    .completed-date {
+      font-size: 11px;
+      color: #556;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .due-date {
+      font-size: 11px;
+      color: #667;
+      flex-shrink: 0;
+      margin-left: auto;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .due-date.overdue { color: #e94560; font-weight: 600; }
+    .due-date.today { color: #f0a030; font-weight: 600; }
+    .due-date.soon { color: #d0d050; }
+
+    .due-input-row {
+      display: flex;
+      gap: 6px;
+      margin: 4px 0 4px 42px;
+    }
+
+    .due-input-row input {
+      flex: 1;
+      background: #1a1a2e;
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      padding: 4px 8px;
+      color: #e0e0e0;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .due-input-row button {
+      background: #0f3460;
+      color: #c0c0c0;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .sub-add {
+      display: flex;
+      gap: 6px;
+      margin: 4px 0 4px 34px;
+    }
+
+    .sub-add input {
+      flex: 1;
+      background: #1a1a2e;
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      padding: 4px 8px;
+      color: #e0e0e0;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .sub-add button {
+      background: #0f3460;
+      color: #c0c0c0;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .empty {
+      text-align: center;
+      color: #445;
+      margin-top: 80px;
+      font-size: 15px;
+    }
+
+    .view-toggle {
+      display: flex;
+      gap: 4px;
+      padding: 8px 16px 0;
+    }
+
+    .view-toggle button {
+      background: none;
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      color: #667;
+      font-size: 11px;
+      padding: 3px 10px;
+      cursor: pointer;
+    }
+
+    .view-toggle button.active {
+      background: #0f3460;
+      color: #c0d0e0;
+    }
+
+    .parent-label {
+      font-size: 11px;
+      color: #556;
+      margin-left: 42px;
+      padding: 1px 0;
+      font-style: italic;
+    }
+
+    .break-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 24px;
+    }
+
+    .break-time {
+      font-size: 72px;
+      font-weight: 200;
+      font-variant-numeric: tabular-nums;
+      color: #e0e0e0;
+      letter-spacing: 2px;
+    }
+
+    .break-time.running { color: #009900; }
+
+    .break-presets {
+      display: flex;
+      gap: 10px;
+    }
+
+    .break-presets button {
+      background: #0f3460;
+      color: #8899aa;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 18px;
+      font-size: 15px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .break-presets button:hover { background: #1a4a8a; color: #e0e0e0; }
+    .break-presets button.selected { background: #009900; color: white; }
+
+    .break-controls {
+      display: flex;
+      gap: 12px;
+    }
+
+    .break-controls button {
+      background: #16213e;
+      color: #8899aa;
+      border: 1px solid #0f3460;
+      border-radius: 8px;
+      padding: 10px 24px;
+      font-size: 15px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .break-controls button:hover { background: #0f3460; color: #e0e0e0; }
+
+    .break-controls button.primary {
+      background: #009900;
+      color: white;
+      border-color: #009900;
+    }
+
+    .break-controls button.primary:hover { background: #007700; }
+  </style>
+</head>
+<body>
+  <div class="titlebar"></div>
+  <div class="tabs">
+    <div class="tab active" id="tab-active" onclick="switchTab('active')">Active <span class="count" id="count-active">0</span></div>
+    <div class="tab" id="tab-completed" onclick="switchTab('completed')">Completed <span class="count" id="count-completed">0</span></div>
+    <div class="tab" id="tab-break" onclick="switchTab('break')">Break</div>
+  </div>
+  <div class="container" id="list"></div>
+  <div class="add-bar" id="add-bar">
+    <input type="text" id="newTodo" placeholder="Add a todo..." autofocus>
+    <button onclick="addTodo()">Add</button>
+  </div>
+
+  <script>
+    const fs = require('fs');
+    const path = require('path');
+    const { ipcRenderer } = require('electron');
+
+    const DATA_FILE = path.join(__dirname, 'todos.json');
+    const COMPLETED_FILE = path.join(__dirname, 'completed.json');
+    let todos = [];
+    let completed = [];
+    let expandedIds = new Set();
+    let notesOpenIds = new Set();
+    let currentTab = 'active';
+    let selectedPath = null; // dot-path string of selected todo, null = none
+
+    // Break timer state
+    let breakSeconds = 10 * 60; // default 10 min
+    let breakRemaining = 0;
+    let breakRunning = false;
+    let breakInterval = null;
+    let breakPreset = 10;
+
+    function load() {
+      try { todos = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')); } catch { todos = []; }
+      try { completed = JSON.parse(fs.readFileSync(COMPLETED_FILE, 'utf-8')); } catch { completed = []; }
+    }
+
+    function save() {
+      fs.writeFileSync(DATA_FILE, JSON.stringify(todos, null, 2));
+      fs.writeFileSync(COMPLETED_FILE, JSON.stringify(completed, null, 2));
+    }
+
+    function saveTodos() {
+      fs.writeFileSync(DATA_FILE, JSON.stringify(todos, null, 2));
+    }
+
+    function saveCompleted() {
+      fs.writeFileSync(COMPLETED_FILE, JSON.stringify(completed, null, 2));
+    }
+
+    function genId() {
+      return Math.random().toString(36).substr(2, 8);
+    }
+
+    // Build ordered list of visible paths (respects expand state)
+    function getVisiblePaths() {
+      const paths = [];
+      function walk(items, prefix) {
+        items.forEach((item, i) => {
+          const p = prefix.length ? prefix + '.' + i : '' + i;
+          paths.push({ path: p, id: item.id });
+          if (item.children && item.children.length > 0 && expandedIds.has(item.id)) {
+            walk(item.children, p);
+          }
+        });
+      }
+      walk(todos, '');
+      return paths;
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      selectedPath = null;
+      document.getElementById('tab-active').classList.toggle('active', tab === 'active');
+      document.getElementById('tab-completed').classList.toggle('active', tab === 'completed');
+      document.getElementById('tab-break').classList.toggle('active', tab === 'break');
+      document.getElementById('add-bar').style.display = tab === 'active' ? 'flex' : 'none';
+      render();
+    }
+
+    function fmtTime(secs) {
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+
+    function render() {
+      const list = document.getElementById('list');
+      document.getElementById('count-active').textContent = todos.length;
+      document.getElementById('count-completed').textContent = completed.length;
+
+      if (currentTab === 'active') {
+        if (todos.length === 0) {
+          list.innerHTML = '<div class="empty">No todos yet</div>';
+        } else {
+          list.innerHTML = renderActiveItems(todos, []);
+        }
+      } else if (currentTab === 'completed') {
+        if (completed.length === 0) {
+          list.innerHTML = '<div class="empty">No completed todos yet</div>';
+        } else {
+          const toggle = '<div class="view-toggle">' +
+            '<button class="' + (completedViewMode === 'date' ? 'active' : '') + '" onclick="setCompletedView(\'date\')">By date</button>' +
+            '<button class="' + (completedViewMode === 'tree' ? 'active' : '') + '" onclick="setCompletedView(\'tree\')">By tree</button>' +
+            '</div>';
+          if (completedViewMode === 'date') {
+            list.innerHTML = toggle + renderCompletedItems(completed);
+          } else {
+            list.innerHTML = toggle + renderCompletedByTree(completed);
+          }
+        }
+      } else if (currentTab === 'break') {
+        list.innerHTML = renderBreakTab();
+      }
+
+      // Scroll selected into view
+      if (selectedPath !== null) {
+        const sel = document.querySelector('.todo-row.selected');
+        if (sel) sel.scrollIntoView({ block: 'nearest' });
+      }
+
+      // Write selection to file for menu bar app
+      let selText = null;
+      if (breakRunning) {
+        selText = 'Break ' + fmtTime(breakRemaining);
+      } else if (selectedPath !== null && currentTab === 'active') {
+        try { selText = getByPath(selectedPath).node.text; } catch {}
+      }
+      fs.writeFileSync(path.join(__dirname, 'selection.json'), JSON.stringify({ text: selText }));
+    }
+
+    function renderBreakTab() {
+      const display = breakRunning ? fmtTime(breakRemaining) : fmtTime(breakSeconds);
+      let html = '<div class="break-container">';
+      html += '<div class="break-time' + (breakRunning ? ' running' : '') + '">' + display + '</div>';
+      if (!breakRunning) {
+        html += '<div style="display:flex;gap:8px;align-items:center">';
+        html += '<input type="text" id="breakInput" placeholder="e.g. 5, 1h30m, 90m" value="' + breakInputVal + '" style="background:#1a1a2e;border:1px solid #0f3460;border-radius:6px;padding:8px 12px;color:#e0e0e0;font-size:16px;width:180px;text-align:center;outline:none;" oninput="onBreakInput(this.value)" onkeydown="if(event.key===\'Enter\'||event.metaKey&&event.key===\'Enter\'){event.preventDefault();startBreak()}">';
+        html += '</div>';
+        html += '<div class="break-presets">';
+        [5, 10, 15, 20, 30, 60].forEach(m => {
+          html += '<button onclick="setBreakPreset(' + m + ')">' + (m >= 60 ? (m/60) + 'h' : m + 'm') + '</button>';
+        });
+        html += '</div>';
+      }
+      html += '<div class="break-controls">';
+      if (breakRunning) {
+        html += '<button class="primary" onclick="stopBreak()">Stop</button>';
+      } else {
+        html += '<button class="primary" onclick="startBreak()">Start</button>';
+      }
+      html += '<button onclick="resetBreak()">Reset</button>';
+      html += '</div>';
+      html += '</div>';
+      return html;
+    }
+
+    let breakInputVal = '10m';
+
+    function parseBreakInput(val) {
+      val = val.trim().toLowerCase();
+      if (!val) return 0;
+      // Try "1h30m", "1h", "30m", or just a number (minutes)
+      let totalSeconds = 0;
+      const hMatch = val.match(/(\d+)\s*h/);
+      const mMatch = val.match(/(\d+)\s*m/);
+      if (hMatch) totalSeconds += parseInt(hMatch[1]) * 3600;
+      if (mMatch) totalSeconds += parseInt(mMatch[1]) * 60;
+      if (!hMatch && !mMatch) {
+        const n = parseFloat(val);
+        if (!isNaN(n)) totalSeconds = Math.round(n * 60);
+      }
+      return totalSeconds;
+    }
+
+    function onBreakInput(val) {
+      breakInputVal = val;
+      const secs = parseBreakInput(val);
+      if (secs > 0) {
+        breakSeconds = secs;
+        breakRemaining = secs;
+        // Update display without full re-render (avoids losing focus)
+        const timeEl = document.querySelector('.break-time');
+        if (timeEl) timeEl.textContent = fmtTime(secs);
+      }
+    }
+
+    function setBreakPreset(mins) {
+      if (breakRunning) return;
+      breakInputVal = mins >= 60 ? (mins/60) + 'h' : mins + 'm';
+      breakSeconds = mins * 60;
+      breakRemaining = breakSeconds;
+      render();
+      // Focus the input after render
+      setTimeout(() => { const el = document.getElementById('breakInput'); if (el) { el.focus(); el.select(); } }, 0);
+    }
+
+    function startBreak() {
+      if (breakRunning) return;
+      if (breakRemaining <= 0) breakRemaining = breakSeconds;
+      breakRunning = true;
+      render();
+      breakInterval = setInterval(() => {
+        breakRemaining--;
+        if (breakRemaining <= 0) {
+          breakRemaining = 0;
+          stopBreak();
+          // Notify break is over
+          new Notification('Break over!', { body: 'Time to get back to work.' });
+        }
+        if (currentTab === 'break') render();
+        // Always update menu bar
+        else updateMenuBar();
+      }, 1000);
+    }
+
+    function stopBreak() {
+      breakRunning = false;
+      if (breakInterval) { clearInterval(breakInterval); breakInterval = null; }
+      render();
+    }
+
+    function resetBreak() {
+      stopBreak();
+      breakRemaining = breakSeconds;
+      render();
+    }
+
+    function updateMenuBar() {
+      let selText = null;
+      if (breakRunning) {
+        selText = 'Break ' + fmtTime(breakRemaining);
+      } else if (selectedPath !== null && currentTab === 'active') {
+        try { selText = getByPath(selectedPath).node.text; } catch {}
+      }
+      fs.writeFileSync(path.join(__dirname, 'selection.json'), JSON.stringify({ text: selText }));
+    }
+
+    function renderActiveItems(items, pathPrefix) {
+      let html = '';
+      items.forEach((item, i) => {
+        const currentPath = [...pathPrefix, i].join('.');
+        const hasChildren = item.children && item.children.length > 0;
+        const isExpanded = expandedIds.has(item.id);
+        const notesOpen = notesOpenIds.has(item.id);
+        const isSelected = selectedPath === currentPath;
+
+        html += '<div class="todo-item" data-path="' + currentPath + '" ondragover="onDragOver(event,\'' + currentPath + '\')" ondragleave="onDragLeave(event)" ondrop="onDrop(event,\'' + currentPath + '\')">';
+        html += '<div class="todo-row' + (item.completed ? ' completed' : '') + (isSelected ? ' selected' : '') + '" data-path="' + currentPath + '" onclick="selectByClick(\'' + currentPath + '\')">';
+
+        html += '<div class="drag-handle" draggable="true" ondragstart="onDragStart(event,\'' + currentPath + '\')" ondragend="onDragEnd(event)">\u2847</div>';
+
+        if (hasChildren) {
+          html += '<div class="expand-arrow" onclick="event.stopPropagation();toggleExpand(\'' + item.id + '\')">' + (isExpanded ? '\u25BC' : '\u25B6') + '</div>';
+        } else {
+          html += '<div class="expand-arrow"></div>';
+        }
+
+        html += '<div class="checkbox ' + (item.completed ? 'checked' : '') + '" onclick="event.stopPropagation();toggleComplete(\'' + currentPath + '\')"></div>';
+        html += '<span class="todo-text" ondblclick="editTodo(\'' + currentPath + '\', this)">' + esc(item.text) + '</span>';
+
+        // Due date (top-level only)
+        if (item.due) {
+          html += dueBadge(item.due);
+        }
+
+        html += '<div class="todo-actions">';
+        html += '<button onclick="event.stopPropagation();promptDueDate(\'' + currentPath + '\')" title="Due date">\uD83D\uDCC5</button>';
+        html += '<button onclick="event.stopPropagation();openNotes(\'' + currentPath + '\')" title="Notes">\uD83D\uDCDD</button>';
+        html += '<button onclick="event.stopPropagation();startSubAdd(\'' + currentPath + '\', \'' + item.id + '\')" title="Add sub-todo">+</button>';
+        html += '<button onclick="event.stopPropagation();removeTodo(\'' + currentPath + '\')" title="Remove">\u2715</button>';
+        html += '</div>';
+        html += '</div>';
+
+        if (item.notes) {
+          html += '<div class="notes-indicator" style="margin-left:42px;font-size:11px;color:#667;padding:2px 0;">has notes</div>';
+        }
+
+        if (hasChildren && isExpanded) {
+          html += '<div class="children">' + renderActiveItems(item.children, [...pathPrefix, i]) + '</div>';
+        }
+
+        html += '</div>';
+      });
+      return html;
+    }
+
+    // Group completed items by day
+    let expandedDays = new Set();
+    let completedDaysInitialized = false;
+    let completedViewMode = 'date'; // 'date' or 'tree'
+    let expandedTreeGroups = new Set();
+
+    function getDayKey(isoStr) {
+      if (!isoStr) return 'Unknown';
+      const d = new Date(isoStr);
+      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    function getTodayKey() {
+      return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    function groupByDay(items) {
+      const groups = {};
+      const order = [];
+      items.forEach((item, origIdx) => {
+        const day = getDayKey(item.completed_at);
+        if (!groups[day]) { groups[day] = []; order.push(day); }
+        groups[day].push({ item, origIdx });
+      });
+      return { groups, order };
+    }
+
+    function renderCompletedItems(items) {
+      const { groups, order } = groupByDay(items);
+
+      // Auto-expand today on first render
+      if (!completedDaysInitialized) {
+        expandedDays.add(getTodayKey());
+        completedDaysInitialized = true;
+      }
+
+      let html = '';
+      order.forEach(day => {
+        const isExpanded = expandedDays.has(day);
+        const dayId = 'day_' + day.replace(/[^a-zA-Z0-9]/g, '_');
+        const isSelected = selectedPath === dayId;
+
+        html += '<div class="todo-item">';
+        html += '<div class="todo-row' + (isSelected ? ' selected' : '') + '" data-path="' + dayId + '" onclick="selectByClick(\'' + dayId + '\')" style="padding:10px;margin-top:8px;">';
+        html += '<div class="expand-arrow" onclick="event.stopPropagation();toggleDayExpand(\'' + esc(day) + '\')">' + (isExpanded ? '\u25BC' : '\u25B6') + '</div>';
+        html += '<span class="todo-text" style="font-weight:600;color:#8899aa;font-size:13px;">' + esc(day) + ' (' + groups[day].length + ')</span>';
+        html += '</div>';
+
+        if (isExpanded) {
+          html += '<div class="children">';
+          groups[day].forEach(({ item, origIdx }) => {
+            html += renderCompletedItem(item, origIdx);
+          });
+          html += '</div>';
+        }
+
+        html += '</div>';
+      });
+      return html;
+    }
+
+    function renderCompletedItem(item, origIdx) {
+      const hasChildren = item.children && item.children.length > 0;
+      const isExpanded = expandedIds.has(item.id);
+      const itemPath = 'c_' + origIdx;
+      const isSelected = selectedPath === itemPath;
+
+      let html = '<div class="todo-item">';
+      html += '<div class="todo-row' + (isSelected ? ' selected' : '') + '" data-path="' + itemPath + '" onclick="selectByClick(\'' + itemPath + '\')">';
+
+      if (hasChildren) {
+        html += '<div class="expand-arrow" onclick="event.stopPropagation();toggleExpand(\'' + item.id + '\')">' + (isExpanded ? '\u25BC' : '\u25B6') + '</div>';
+      } else {
+        html += '<div class="expand-arrow"></div>';
+      }
+
+      html += '<span style="color:#556;margin-right:4px;">\u2022</span>';
+      html += '<span class="todo-text">' + esc(item.text) + '</span>';
+
+      if (item.completed_at) {
+        const d = new Date(item.completed_at);
+        html += '<span class="completed-date">' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '</span>';
+      }
+
+      html += '<div class="todo-actions">';
+      html += '<button onclick="event.stopPropagation();openCompletedNotes(' + origIdx + ')" title="Notes">\uD83D\uDCDD</button>';
+      html += '<button onclick="event.stopPropagation();restoreTodo(' + origIdx + ')" title="Restore">\u21A9</button>';
+      html += '</div>';
+
+      html += '</div>';
+
+      if (item.parent_text && completedViewMode === 'date') {
+        html += '<div class="parent-label">from: ' + esc(item.parent_text) + '</div>';
+      }
+
+      if (item.notes) {
+        html += '<div class="notes-indicator" style="margin-left:42px;font-size:11px;color:#667;padding:2px 0;">has notes</div>';
+      }
+
+      if (hasChildren && isExpanded) {
+        html += '<div class="children">' + renderCompletedChildren(item.children, itemPath) + '</div>';
+      }
+
+      html += '</div>';
+      return html;
+    }
+
+    function openCompletedNotes(origIdx) {
+      const item = completed[origIdx];
+      if (!item) return;
+      ipcRenderer.send('open-notes', { todoId: item.id, todoText: item.text, notes: item.notes || '' });
+    }
+
+    function renderCompletedChildren(items, parentPath) {
+      let html = '';
+      items.forEach((item, i) => {
+        const hasChildren = item.children && item.children.length > 0;
+        const isExpanded = expandedIds.has(item.id);
+        const childPath = parentPath + '.' + i;
+        const isSelected = selectedPath === childPath;
+
+        html += '<div class="todo-item">';
+        html += '<div class="todo-row' + (isSelected ? ' selected' : '') + '" data-path="' + childPath + '" onclick="selectByClick(\'' + childPath + '\')">';
+
+        if (hasChildren) {
+          html += '<div class="expand-arrow" onclick="event.stopPropagation();toggleExpand(\'' + item.id + '\')">' + (isExpanded ? '\u25BC' : '\u25B6') + '</div>';
+        } else {
+          html += '<div class="expand-arrow"></div>';
+        }
+
+        html += '<span style="color:#556;margin-right:4px;">\u2022</span>';
+        html += '<span class="todo-text">' + esc(item.text) + '</span>';
+        html += '</div>';
+
+        if (hasChildren && isExpanded) {
+          html += '<div class="children">' + renderCompletedChildren(item.children, childPath) + '</div>';
+        }
+
+        html += '</div>';
+      });
+      return html;
+    }
+
+    function toggleDayExpand(day) {
+      if (expandedDays.has(day)) expandedDays.delete(day);
+      else expandedDays.add(day);
+      render();
+    }
+
+    function setCompletedView(mode) {
+      completedViewMode = mode;
+      selectedPath = null;
+      render();
+    }
+
+    function toggleTreeGroupExpand(key) {
+      if (expandedTreeGroups.has(key)) expandedTreeGroups.delete(key);
+      else expandedTreeGroups.add(key);
+      render();
+    }
+
+    function renderCompletedByTree(items) {
+      // Group by parent_text (top-level items have no parent_text)
+      const groups = {};
+      const order = [];
+      items.forEach((item, origIdx) => {
+        const key = item.parent_text || item.text;
+        const isTopLevel = !item.parent_text;
+        if (!groups[key]) {
+          groups[key] = { items: [], isTopLevel };
+          order.push(key);
+        }
+        groups[key].items.push({ item, origIdx });
+      });
+
+      // Auto-expand first group on first view
+      if (expandedTreeGroups.size === 0 && order.length > 0) {
+        expandedTreeGroups.add(order[0]);
+      }
+
+      let html = '';
+      order.forEach(key => {
+        const group = groups[key];
+
+        // Top-level items with no children in this group: render directly, no group wrapper
+        if (group.isTopLevel && group.items.length === 1) {
+          html += renderCompletedItem(group.items[0].item, group.items[0].origIdx);
+          return;
+        }
+
+        const isExpanded = expandedTreeGroups.has(key);
+        const groupId = 'tree_' + key.replace(/[^a-zA-Z0-9]/g, '_');
+        const isSelected = selectedPath === groupId;
+
+        html += '<div class="todo-item">';
+        html += '<div class="todo-row' + (isSelected ? ' selected' : '') + '" data-path="' + groupId + '" onclick="selectByClick(\'' + groupId + '\')" style="padding:10px;margin-top:8px;">';
+        html += '<div class="expand-arrow" onclick="event.stopPropagation();toggleTreeGroupExpand(\'' + esc(key).replace(/'/g, "\\'") + '\')">' + (isExpanded ? '\u25BC' : '\u25B6') + '</div>';
+        html += '<span class="todo-text" style="font-weight:600;color:#8899aa;font-size:13px;">' + esc(key) + ' (' + group.items.length + ')</span>';
+        html += '</div>';
+
+        if (isExpanded) {
+          html += '<div class="children">';
+          group.items.forEach(({ item, origIdx }) => {
+            html += renderCompletedItem(item, origIdx);
+          });
+          html += '</div>';
+        }
+
+        html += '</div>';
+      });
+      return html;
+    }
+
+    // Build visible paths for completed tab (handles both view modes)
+    function getVisibleCompletedPaths() {
+      if (completedViewMode === 'tree') {
+        return getVisibleCompletedTreePaths();
+      }
+      return getVisibleCompletedDatePaths();
+    }
+
+    function getVisibleCompletedTreePaths() {
+      const groups = {};
+      const groupIsTopLevel = {};
+      const order = [];
+      completed.forEach((item, origIdx) => {
+        const key = item.parent_text || item.text;
+        const isTopLevel = !item.parent_text;
+        if (!groups[key]) { groups[key] = []; groupIsTopLevel[key] = isTopLevel; order.push(key); }
+        groups[key].push({ item, origIdx });
+      });
+      const paths = [];
+      order.forEach(key => {
+        // Single top-level items render directly, no group header
+        if (groupIsTopLevel[key] && groups[key].length === 1) {
+          const { item, origIdx } = groups[key][0];
+          const itemPath = 'c_' + origIdx;
+          paths.push({ path: itemPath, type: 'item', origIdx, id: item.id });
+          if (item.children && item.children.length > 0 && expandedIds.has(item.id)) {
+            walkCompletedChildren(item.children, itemPath, paths);
+          }
+          return;
+        }
+        const groupId = 'tree_' + key.replace(/[^a-zA-Z0-9]/g, '_');
+        paths.push({ path: groupId, type: 'group', key });
+        if (expandedTreeGroups.has(key)) {
+          groups[key].forEach(({ item, origIdx }) => {
+            const itemPath = 'c_' + origIdx;
+            paths.push({ path: itemPath, type: 'item', origIdx, id: item.id });
+            if (item.children && item.children.length > 0 && expandedIds.has(item.id)) {
+              walkCompletedChildren(item.children, itemPath, paths);
+            }
+          });
+        }
+      });
+      return paths;
+    }
+
+    // Build visible paths for completed date view
+    function walkCompletedChildren(children, pathPrefix, paths) {
+      children.forEach((child, i) => {
+        const childPath = pathPrefix + '.' + i;
+        paths.push({ path: childPath, type: 'child', id: child.id });
+        if (child.children && child.children.length > 0 && expandedIds.has(child.id)) {
+          walkCompletedChildren(child.children, childPath, paths);
+        }
+      });
+    }
+
+    function getVisibleCompletedDatePaths() {
+      const { groups, order } = groupByDay(completed);
+      const paths = [];
+      order.forEach(day => {
+        const dayId = 'day_' + day.replace(/[^a-zA-Z0-9]/g, '_');
+        paths.push({ path: dayId, type: 'day', day });
+        if (expandedDays.has(day)) {
+          groups[day].forEach(({ item, origIdx }) => {
+            const itemPath = 'c_' + origIdx;
+            paths.push({ path: itemPath, type: 'item', origIdx, id: item.id });
+            if (item.children && item.children.length > 0 && expandedIds.has(item.id)) {
+              walkCompletedChildren(item.children, itemPath, paths);
+            }
+          });
+        }
+      });
+      return paths;
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function getByPath(pathStr) {
+      const parts = pathStr.split('.').map(Number);
+      let list = todos;
+      let node = null;
+      for (let i = 0; i < parts.length; i++) {
+        node = list[parts[i]];
+        if (i < parts.length - 1) list = node.children;
+      }
+      return { node, list, idx: parts[parts.length - 1], isTopLevel: parts.length === 1 };
+    }
+
+    function deepCopy(obj) {
+      return JSON.parse(JSON.stringify(obj));
+    }
+
+    function selectByClick(pathStr) {
+      selectedPath = pathStr;
+      document.getElementById('newTodo').blur();
+      render();
+    }
+
+    function addTodo() {
+      const input = document.getElementById('newTodo');
+      const text = input.value.trim();
+      if (!text) return;
+      todos.push({ id: genId(), text, completed: false, notes: '', created: new Date().toISOString(), children: [] });
+      input.value = '';
+      saveTodos();
+      render();
+    }
+
+    function completeAll(n) {
+      n.completed = true;
+      n.children.forEach(completeAll);
+    }
+
+    function toggleComplete(pathStr) {
+      const { node, list, idx, isTopLevel } = getByPath(pathStr);
+
+      if (node.completed) {
+        node.completed = false;
+        saveTodos();
+        render();
+        return;
+      }
+
+      completeAll(node);
+      node.completed_at = new Date().toISOString();
+      const copy = deepCopy(node);
+      // Save restore position
+      if (isTopLevel) {
+        copy.original_index = idx;
+      } else {
+        // Add parent context for sub-todos
+        const parts = pathStr.split('.');
+        let parentText = '';
+        // Save parent id for restore
+        const parentPath = parts.slice(0, -1).join('.');
+        try {
+          const parentNode = getByPath(parentPath).node;
+          copy.original_parent_id = parentNode.id;
+          copy.original_child_index = parseInt(parts[parts.length - 1]);
+          let p = getByPath('' + parts[0]).node;
+          parentText = p.text;
+          for (let i = 1; i < parts.length - 1; i++) {
+            p = p.children[parseInt(parts[i])];
+            parentText += ' > ' + p.text;
+          }
+        } catch {}
+        copy.parent_text = parentText;
+      }
+      // Remove any existing entry with the same id before adding
+      const existingIdx = completed.findIndex(c => c.id === copy.id);
+      if (existingIdx >= 0) completed.splice(existingIdx, 1);
+      completed.unshift(copy);
+      saveCompleted();
+
+      if (isTopLevel) {
+        list.splice(idx, 1);
+        // Fix selectedPath after removal
+        const visible = getVisiblePaths();
+        if (visible.length === 0) {
+          selectedPath = null;
+        } else {
+          // Select next item or last item
+          const selIdx = Math.min(idx, visible.length - 1);
+        }
+      }
+
+      saveTodos();
+      // Recompute selection after completing top-level
+      if (isTopLevel) {
+        const vis = getVisiblePaths();
+        if (vis.length === 0) selectedPath = null;
+        else {
+          const newIdx = Math.min(parseInt(pathStr), vis.length - 1);
+          selectedPath = vis[newIdx].path;
+        }
+      }
+      render();
+    }
+
+    function restoreTodo(completedIdx) {
+      const item = completed[completedIdx];
+      function uncompleteAll(n) {
+        n.completed = false;
+        delete n.completed_at;
+        delete n.parent_text;
+        delete n.original_index;
+        delete n.original_parent_id;
+        delete n.original_child_index;
+        n.children.forEach(uncompleteAll);
+      }
+
+      // Check if this item still exists in the active tree (sub-todos stay in active when completed)
+      const existing = findNodeById(todos, item.id);
+      if (existing) {
+        // Just uncomplete it in place
+        uncompleteAll(existing);
+      } else {
+        // Re-insert it
+        const restored = deepCopy(item);
+        uncompleteAll(restored);
+
+        if (item.original_parent_id) {
+          const parent = findNodeById(todos, item.original_parent_id);
+          if (parent) {
+            const idx = Math.min(item.original_child_index || 0, parent.children.length);
+            parent.children.splice(idx, 0, restored);
+          } else {
+            todos.push(restored);
+          }
+        } else if (item.original_index !== undefined) {
+          const idx = Math.min(item.original_index, todos.length);
+          todos.splice(idx, 0, restored);
+        } else {
+          todos.push(restored);
+        }
+      }
+
+      completed.splice(completedIdx, 1);
+      save();
+      render();
+    }
+
+    function toggleExpand(id) {
+      if (expandedIds.has(id)) expandedIds.delete(id);
+      else expandedIds.add(id);
+      render();
+    }
+
+    // Notes editor window
+    function openNotes(pathStr) {
+      const { node } = getByPath(pathStr);
+      ipcRenderer.send('open-notes', { todoId: node.id, todoText: node.text, notes: node.notes || '' });
+    }
+
+    function findNodeById(items, id) {
+      for (const item of items) {
+        if (item.id === id) return item;
+        const found = findNodeById(item.children || [], id);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    // Receive saved notes back from editor window
+    ipcRenderer.on('notes-saved', (event, { todoId, notes }) => {
+      const node = findNodeById(todos, todoId);
+      if (node) {
+        node.notes = notes;
+        saveTodos();
+      }
+      const cNode = findNodeById(completed, todoId);
+      if (cNode) {
+        cNode.notes = notes;
+        saveCompleted();
+      }
+      render();
+    });
+
+    function removeTodo(pathStr) {
+      const visible = getVisiblePaths();
+      const visIdx = visible.findIndex(v => v.path === pathStr);
+      const { list, idx } = getByPath(pathStr);
+      list.splice(idx, 1);
+      saveTodos();
+      // Select next or previous
+      const newVisible = getVisiblePaths();
+      if (newVisible.length === 0) {
+        selectedPath = null;
+      } else {
+        const newIdx = Math.min(visIdx, newVisible.length - 1);
+        selectedPath = newVisible[newIdx].path;
+      }
+      render();
+    }
+
+    function editTodo(pathStr, el) {
+      const { node } = getByPath(pathStr);
+      const input = document.createElement('input');
+      input.value = node.text;
+      input.style.cssText = 'flex:1;background:#1a1a2e;border:1px solid #009900;border-radius:4px;padding:2px 6px;color:#e0e0e0;font-size:14px;outline:none;';
+      el.replaceWith(input);
+      input.focus();
+      input.select();
+
+      function commit() {
+        const newText = input.value.trim();
+        if (newText) node.text = newText;
+        saveTodos();
+        render();
+      }
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') render(); });
+    }
+
+    function startSubAdd(parentPath, parentId) {
+      expandedIds.add(parentId);
+      render();
+      setTimeout(() => {
+        const existing = document.querySelector('.sub-add[data-path="' + parentPath + '"]');
+        if (existing) { existing.querySelector('input').focus(); return; }
+
+        const div = document.createElement('div');
+        div.className = 'sub-add';
+        div.dataset.path = parentPath;
+        div.innerHTML = '<input type="text" placeholder="Add sub-todo..." onkeydown="if(event.key===\'Enter\'&&event.metaKey)commitSubAdd(\'' + parentPath + '\',\'' + parentId + '\',this);if(event.key===\'Escape\')this.closest(\'.sub-add\').remove()">' +
+          '<button onclick="commitSubAdd(\'' + parentPath + '\',\'' + parentId + '\',this.previousElementSibling)">Add</button>';
+
+        const addBar = document.querySelector('.add-bar');
+        addBar.insertAdjacentElement('beforebegin', div);
+        div.querySelector('input').focus();
+      }, 0);
+    }
+
+    function commitSubAdd(parentPath, parentId, inputEl) {
+      const text = inputEl.value.trim();
+      if (!text) return;
+      const { node } = getByPath(parentPath);
+      node.children.push({ id: genId(), text, completed: false, notes: '', created: new Date().toISOString(), children: [] });
+      expandedIds.add(parentId);
+      saveTodos();
+      const subAdd = inputEl.closest('.sub-add');
+      if (subAdd) subAdd.remove();
+      render();
+    }
+
+    // Due date helpers
+    function dueBadge(dueStr) {
+      const now = new Date();
+      const hasTime = dueStr.includes('T');
+      const due = hasTime ? new Date(dueStr) : new Date(dueStr + 'T23:59:59');
+      const diffMs = due - now;
+      const diffMins = Math.round(diffMs / 60000);
+      const diffHours = Math.floor(Math.abs(diffMins) / 60);
+      const remMins = Math.abs(diffMins) % 60;
+      let label, cls = 'due-date';
+
+      if (diffMs < 0) {
+        // Overdue
+        cls += ' overdue';
+        if (hasTime && Math.abs(diffMins) < 1440) {
+          label = (diffHours > 0 ? diffHours + 'h' : '') + (remMins > 0 ? remMins + 'm' : '') + ' overdue';
+        } else {
+          const diffDays = Math.ceil(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
+          label = diffDays + 'd overdue';
+        }
+      } else if (hasTime && diffMins < 1440) {
+        // Due within 24h with a time set — show hours/minutes
+        if (diffMins <= 0) { label = 'due now'; cls += ' overdue'; }
+        else {
+          const h = Math.floor(diffMins / 60);
+          const m = diffMins % 60;
+          label = (h > 0 ? h + 'h' : '') + (m > 0 ? m + 'm' : '') + ' left';
+          cls += diffMins <= 60 ? ' overdue' : diffMins <= 180 ? ' today' : ' soon';
+        }
+      } else {
+        // Date-only or more than 24h away
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+        const diffDays = Math.round((dueDay - today) / (1000 * 60 * 60 * 24));
+        if (diffDays === 0) { label = 'due today'; cls += ' today'; }
+        else if (diffDays === 1) { label = 'due tomorrow'; cls += ' soon'; }
+        else if (diffDays <= 3) { label = diffDays + 'd left'; cls += ' soon'; }
+        else { label = diffDays + 'd left'; }
+      }
+      return '<span class="' + cls + '">' + label + '</span>';
+    }
+
+    // Refresh due badges every 30s
+    setInterval(() => { if (currentTab === 'active') render(); }, 30000);
+
+    function parseTimeStr(str) {
+      // Parses "3pm", "3:30pm", "15:00", "3:30PM" → { hours, minutes } or null
+      str = str.trim().toLowerCase();
+      const ampm = str.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+      if (ampm) {
+        let h = parseInt(ampm[1]);
+        const m = ampm[2] ? parseInt(ampm[2]) : 0;
+        if (ampm[3] === 'pm' && h !== 12) h += 12;
+        if (ampm[3] === 'am' && h === 12) h = 0;
+        return { hours: h, minutes: m };
+      }
+      const mil = str.match(/^(\d{1,2}):(\d{2})$/);
+      if (mil) {
+        const h = parseInt(mil[1]);
+        const m = parseInt(mil[2]);
+        if (h >= 0 && h <= 23) return { hours: h, minutes: m };
+      }
+      return null;
+    }
+
+    function parseDueDate(val) {
+      val = val.trim().toLowerCase();
+      const now = new Date();
+      const year = now.getFullYear();
+      const today = new Date(year, now.getMonth(), now.getDate());
+
+      // Split off a trailing time component
+      let timePart = null;
+      const timeAtEnd = val.match(/^(.+?)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}:\d{2})$/);
+      if (timeAtEnd) {
+        const parsed = parseTimeStr(timeAtEnd[2]);
+        if (parsed) {
+          timePart = parsed;
+          val = timeAtEnd[1].trim();
+        }
+      }
+
+      // Check if the entire input is just a time (means today at that time)
+      if (!timePart) {
+        const justTime = parseTimeStr(val);
+        if (justTime) {
+          timePart = justTime;
+          val = 'today';
+        }
+      }
+
+      function withTime(dateStr) {
+        if (!timePart) return dateStr;
+        return dateStr + 'T' + String(timePart.hours).padStart(2,'0') + ':' + String(timePart.minutes).padStart(2,'0') + ':00';
+      }
+
+      if (val === 'today') return withTime(fmtDate(today));
+      if (val === 'tomorrow' || val === 'tmrw') {
+        today.setDate(today.getDate() + 1);
+        return withTime(fmtDate(today));
+      }
+
+      // +Nd or Nd
+      const relMatch = val.match(/^\+?(\d+)\s*d$/);
+      if (relMatch) {
+        today.setDate(today.getDate() + parseInt(relMatch[1]));
+        return withTime(fmtDate(today));
+      }
+
+      // +Nw
+      const weekMatch = val.match(/^\+?(\d+)\s*w$/);
+      if (weekMatch) {
+        today.setDate(today.getDate() + parseInt(weekMatch[1]) * 7);
+        return withTime(fmtDate(today));
+      }
+
+      // Day names
+      const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+      const dayIdx = days.findIndex(d => d.startsWith(val));
+      if (dayIdx >= 0) {
+        let diff = dayIdx - today.getDay();
+        if (diff <= 0) diff += 7;
+        today.setDate(today.getDate() + diff);
+        return withTime(fmtDate(today));
+      }
+
+      // ISO format with time already: YYYY-MM-DDTHH:MM
+      const isoTimeMatch = val.match(/^(\d{4}-\d{1,2}-\d{1,2})t(\d{1,2}:\d{2})/);
+      if (isoTimeMatch) return val.toUpperCase();
+
+      // ISO format: YYYY-MM-DD
+      const isoMatch = val.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (isoMatch) return withTime(val);
+
+      // M/D or M/D/YYYY
+      const slashMatch = val.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+      if (slashMatch) {
+        const m = parseInt(slashMatch[1]);
+        const d = parseInt(slashMatch[2]);
+        let y = slashMatch[3] ? parseInt(slashMatch[3]) : year;
+        if (y < 100) y += 2000;
+        return withTime(fmtDate(new Date(y, m - 1, d)));
+      }
+
+      // "apr 15" or "april 15"
+      const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+      const monMatch = val.match(/^([a-z]+)\s+(\d{1,2})$/);
+      if (monMatch) {
+        const mIdx = months.findIndex(m => monMatch[1].startsWith(m));
+        if (mIdx >= 0) {
+          return withTime(fmtDate(new Date(year, mIdx, parseInt(monMatch[2]))));
+        }
+      }
+
+      // Bare number — day of current month
+      const bareNum = val.match(/^(\d{1,2})$/);
+      if (bareNum) {
+        const d = parseInt(bareNum[1]);
+        if (d >= 1 && d <= 31) {
+          let target = new Date(year, now.getMonth(), d);
+          if (target < today) target.setMonth(target.getMonth() + 1);
+          return withTime(fmtDate(target));
+        }
+      }
+
+      return null;
+    }
+
+    function fmtDate(d) {
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function promptDueDate(pathStr) {
+      render();
+      setTimeout(() => {
+        const existing = document.querySelector('.due-input-row');
+        if (existing) existing.remove();
+
+        const { node } = getByPath(pathStr);
+        const div = document.createElement('div');
+        div.className = 'due-input-row';
+        div.innerHTML = '<input type="text" placeholder="e.g. tomorrow 3pm, fri, +3d, apr 15 2:30pm" value="' + (node.due || '') + '" ' +
+          'onkeydown="if(event.key===\'Enter\'&&event.metaKey){commitDueDate(\'' + pathStr + '\',this.value);}" ' +
+          'onkeyup="if(event.key===\'Escape\')this.closest(\'.due-input-row\').remove()">' +
+          '<button onclick="commitDueDate(\'' + pathStr + '\',this.previousElementSibling.value)">Set</button>' +
+          '<button onclick="clearDueDate(\'' + pathStr + '\');this.closest(\'.due-input-row\').remove()">Clear</button>';
+
+        const addBar = document.querySelector('.add-bar');
+        addBar.insertAdjacentElement('beforebegin', div);
+        div.querySelector('input').focus();
+        div.querySelector('input').select();
+      }, 0);
+    }
+
+    function commitDueDate(pathStr, val) {
+      const date = parseDueDate(val);
+      if (!date) return;
+      const { node } = getByPath(pathStr);
+      node.due = date;
+      saveTodos();
+      const row = document.querySelector('.due-input-row');
+      if (row) row.remove();
+      render();
+    }
+
+    function clearDueDate(pathStr) {
+      const { node } = getByPath(pathStr);
+      delete node.due;
+      saveTodos();
+      render();
+    }
+
+    // Drag and drop reordering
+    let dragPath = null;
+
+    function onDragStart(e, pathStr) {
+      dragPath = pathStr;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', pathStr);
+      // Mark the dragged item
+      setTimeout(() => {
+        const el = document.querySelector('.todo-item[data-path="' + pathStr + '"]');
+        if (el) el.classList.add('dragging');
+      }, 0);
+    }
+
+    function onDragEnd(e) {
+      document.querySelectorAll('.todo-item').forEach(el => {
+        el.classList.remove('dragging', 'drag-over-above', 'drag-over-below');
+      });
+      dragPath = null;
+    }
+
+    function onDragOver(e, targetPath) {
+      if (!dragPath || dragPath === targetPath) return;
+      // Only allow reordering among siblings (same parent)
+      const dragParent = dragPath.includes('.') ? dragPath.substring(0, dragPath.lastIndexOf('.')) : '';
+      const targetParent = targetPath.includes('.') ? targetPath.substring(0, targetPath.lastIndexOf('.')) : '';
+      if (dragParent !== targetParent) return;
+
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      const el = document.querySelector('.todo-item[data-path="' + targetPath + '"]');
+      if (!el) return;
+      // Clear other indicators
+      document.querySelectorAll('.todo-item').forEach(i => i.classList.remove('drag-over-above', 'drag-over-below'));
+      const rect = el.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) {
+        el.classList.add('drag-over-above');
+      } else {
+        el.classList.add('drag-over-below');
+      }
+    }
+
+    function onDragLeave(e) {
+      const el = e.currentTarget;
+      el.classList.remove('drag-over-above', 'drag-over-below');
+    }
+
+    function onDrop(e, targetPath) {
+      e.preventDefault();
+      if (!dragPath || dragPath === targetPath) return;
+
+      const dragParent = dragPath.includes('.') ? dragPath.substring(0, dragPath.lastIndexOf('.')) : '';
+      const targetParent = targetPath.includes('.') ? targetPath.substring(0, targetPath.lastIndexOf('.')) : '';
+      if (dragParent !== targetParent) return;
+
+      // Get the sibling list
+      let list;
+      if (dragParent === '') {
+        list = todos;
+      } else {
+        const { node } = getByPath(dragParent);
+        list = node.children;
+      }
+
+      const dragIdx = parseInt(dragPath.split('.').pop());
+      const targetIdx = parseInt(targetPath.split('.').pop());
+
+      // Determine if dropping above or below
+      const el = document.querySelector('.todo-item[data-path="' + targetPath + '"]');
+      const rect = el.getBoundingClientRect();
+      const dropAbove = e.clientY < rect.top + rect.height / 2;
+
+      // Remove dragged item
+      const [item] = list.splice(dragIdx, 1);
+
+      // Insert at new position
+      let insertIdx = targetIdx;
+      if (dragIdx < targetIdx) insertIdx--; // adjust for removal
+      if (!dropAbove) insertIdx++;
+      list.splice(insertIdx, 0, item);
+
+      dragPath = null;
+      saveTodos();
+      render();
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+
+      // Cmd+Shift+] → next tab, Cmd+Shift+[ → previous tab (always works)
+      const tabOrder = ['active', 'completed', 'break'];
+      if (e.metaKey && e.shiftKey && e.key === ']') {
+        e.preventDefault();
+        const idx = tabOrder.indexOf(currentTab);
+        switchTab(tabOrder[(idx + 1) % tabOrder.length]);
+        return;
+      }
+      if (e.metaKey && e.shiftKey && e.key === '[') {
+        e.preventDefault();
+        const idx = tabOrder.indexOf(currentTab);
+        switchTab(tabOrder[(idx - 1 + tabOrder.length) % tabOrder.length]);
+        return;
+      }
+
+      // Skip if typing in an input/textarea
+      const tag = document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') {
+        // Arrow down from add bar selects first todo
+        if (document.activeElement.id === 'newTodo') {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const vis = getVisiblePaths();
+            if (vis.length > 0) {
+              selectedPath = vis[0].path;
+              document.activeElement.blur();
+              render();
+            }
+          }
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const vis = getVisiblePaths();
+            if (vis.length > 0) {
+              selectedPath = vis[vis.length - 1].path;
+              document.activeElement.blur();
+              render();
+            }
+          }
+        }
+        return;
+      }
+
+      // Completed tab navigation
+      if (currentTab === 'completed') {
+        const cVisible = getVisibleCompletedPaths();
+        if (cVisible.length === 0) return;
+        const cIdx = selectedPath !== null ? cVisible.findIndex(v => v.path === selectedPath) : -1;
+
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (cIdx < 0) selectedPath = cVisible[0].path;
+          else if (cIdx < cVisible.length - 1) selectedPath = cVisible[cIdx + 1].path;
+          render(); return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (cIdx < 0) selectedPath = cVisible[cVisible.length - 1].path;
+          else if (cIdx > 0) selectedPath = cVisible[cIdx - 1].path;
+          render(); return;
+        }
+        if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && selectedPath !== null) {
+          e.preventDefault();
+          const entry = cVisible[cIdx];
+          if (entry) {
+            if (entry.type === 'day') {
+              toggleDayExpand(entry.day);
+            } else if (entry.type === 'group') {
+              toggleTreeGroupExpand(entry.key);
+            } else if (entry.type === 'item') {
+              const item = completed[entry.origIdx];
+              if (item && item.children && item.children.length > 0) {
+                toggleExpand(item.id);
+              }
+            } else if (entry.type === 'child') {
+              toggleExpand(entry.id);
+            }
+          }
+          return;
+        }
+        if ((e.key === 'n' || e.key === 'N') && selectedPath !== null) {
+          e.preventDefault();
+          const entry = cVisible[cIdx];
+          if (entry && entry.type === 'item') {
+            openCompletedNotes(entry.origIdx);
+          }
+          return;
+        }
+        if (e.key === 'Enter' && e.shiftKey && selectedPath !== null) {
+          e.preventDefault();
+          const entry = cVisible[cIdx];
+          if (entry && entry.type === 'item') {
+            restoreTodo(entry.origIdx);
+          }
+          return;
+        }
+        if ((e.key === 'Backspace' || e.key === 'Delete') && selectedPath !== null) {
+          e.preventDefault();
+          const entry = cVisible[cIdx];
+          if (entry && entry.type === 'item') {
+            completed.splice(entry.origIdx, 1);
+            saveCompleted();
+            const newVisible = getVisibleCompletedPaths();
+            if (newVisible.length === 0) selectedPath = null;
+            else {
+              const newIdx = Math.min(cIdx, newVisible.length - 1);
+              selectedPath = newVisible[newIdx].path;
+            }
+            render();
+          }
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          selectedPath = null;
+          render(); return;
+        }
+        return;
+      }
+
+      if (currentTab !== 'active') return;
+
+      const visible = getVisiblePaths();
+      if (visible.length === 0) return;
+
+      const currentIdx = selectedPath !== null ? visible.findIndex(v => v.path === selectedPath) : -1;
+
+      // Shift+Arrow - reorder among siblings
+      if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp') && selectedPath !== null) {
+        e.preventDefault();
+        const parts = selectedPath.split('.');
+        const idx = parseInt(parts[parts.length - 1]);
+        const parentPath = parts.slice(0, -1).join('.');
+        const list = parentPath === '' ? todos : getByPath(parentPath).node.children;
+        const newIdx = e.key === 'ArrowDown' ? idx + 1 : idx - 1;
+        if (newIdx >= 0 && newIdx < list.length) {
+          const [item] = list.splice(idx, 1);
+          list.splice(newIdx, 0, item);
+          // Update selectedPath to follow the moved item
+          parts[parts.length - 1] = '' + newIdx;
+          selectedPath = parts.join('.');
+          saveTodos();
+          render();
+        }
+        return;
+      }
+
+      // Arrow Down
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (currentIdx < 0) {
+          selectedPath = visible[0].path;
+        } else if (currentIdx < visible.length - 1) {
+          selectedPath = visible[currentIdx + 1].path;
+        } else {
+          selectedPath = visible[0].path;
+        }
+        render();
+        return;
+      }
+
+      // Arrow Up
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (currentIdx < 0) {
+          selectedPath = visible[visible.length - 1].path;
+        } else if (currentIdx > 0) {
+          selectedPath = visible[currentIdx - 1].path;
+        } else {
+          selectedPath = visible[visible.length - 1].path;
+        }
+        render();
+        return;
+      }
+
+      if (selectedPath === null) return;
+
+      // Enter - toggle expand/collapse
+      if (e.key === 'Enter' && !e.shiftKey && !e.metaKey) {
+        e.preventDefault();
+        const { node } = getByPath(selectedPath);
+        if (node.children && node.children.length > 0) {
+          toggleExpand(node.id);
+        }
+        return;
+      }
+
+      // Shift+Enter - complete
+      if (e.key === 'Enter' && e.shiftKey) {
+        e.preventDefault();
+        toggleComplete(selectedPath);
+        return;
+      }
+
+      // Cmd+Shift+= (plus) - add sub-todo
+      if (e.key === '=' && e.metaKey && e.shiftKey) {
+        e.preventDefault();
+        const { node } = getByPath(selectedPath);
+        startSubAdd(selectedPath, node.id);
+        return;
+      }
+
+      // Shift+= (plus, no cmd) - add sibling todo below current
+      if (e.key === '+' && e.shiftKey && !e.metaKey) {
+        e.preventDefault();
+        const parts = selectedPath.split('.');
+        const isTopLevel = parts.length === 1;
+        if (isTopLevel) {
+          // Focus the main add bar
+          document.getElementById('newTodo').focus();
+        } else {
+          // Open sub-add under the same parent
+          const parentPath = parts.slice(0, -1).join('.');
+          const parentNode = getByPath(parentPath).node;
+          startSubAdd(parentPath, parentNode.id);
+        }
+        return;
+      }
+
+      // Delete/Backspace - remove
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        removeTodo(selectedPath);
+        return;
+      }
+
+      // N - toggle notes
+      if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        openNotes(selectedPath);
+        return;
+      }
+
+      // D - set due date (top-level only)
+      if ((e.key === 'd' || e.key === 'D') || (e.key === 'C')) {
+        e.preventDefault();
+        promptDueDate(selectedPath);
+        return;
+      }
+
+      // E - edit selected todo: move text to appropriate add bar
+      if (e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+        const parts = selectedPath.split('.');
+        const isTopLevel = parts.length === 1;
+        const { node, list, idx } = getByPath(selectedPath);
+        const text = node.text;
+        list.splice(idx, 1);
+        saveTodos();
+        selectedPath = null;
+
+        if (isTopLevel) {
+          render();
+          const input = document.getElementById('newTodo');
+          input.value = text;
+          input.focus();
+          input.select();
+        } else {
+          // Sub-todo: open sub-add under parent
+          const parentPath = parts.slice(0, -1).join('.');
+          const parentNode = getByPath(parentPath).node;
+          expandedIds.add(parentNode.id);
+          render();
+          startSubAdd(parentPath, parentNode.id);
+          setTimeout(() => {
+            const subInput = document.querySelector('.sub-add input');
+            if (subInput) {
+              subInput.value = text;
+              subInput.focus();
+              subInput.select();
+            }
+          }, 50);
+        }
+        return;
+      }
+
+      // Shift+Escape - archive completed sub-todo from active to completed tab
+      if (e.key === 'Escape' && e.shiftKey && selectedPath.includes('.')) {
+        const { node } = getByPath(selectedPath);
+        if (node.completed) {
+          e.preventDefault();
+          // Find parent chain for context
+          const parts = selectedPath.split('.');
+          const parentPath = parts.slice(0, -1).join('.');
+          let parentText = '';
+          try {
+            let p = getByPath(''+parts[0]).node;
+            parentText = p.text;
+            for (let i = 1; i < parts.length - 1; i++) {
+              p = p.children[parseInt(parts[i])];
+              parentText += ' > ' + p.text;
+            }
+          } catch {}
+          // Add to completed with parent info and restore position
+          const copy = deepCopy(node);
+          copy.parent_text = parentText;
+          if (!copy.completed_at) copy.completed_at = new Date().toISOString();
+          const parentPathStr = parts.slice(0, -1).join('.');
+          try {
+            const parentNode = getByPath(parentPathStr).node;
+            copy.original_parent_id = parentNode.id;
+            copy.original_child_index = parseInt(parts[parts.length - 1]);
+          } catch {}
+          const existIdx = completed.findIndex(c => c.id === copy.id);
+          if (existIdx >= 0) completed.splice(existIdx, 1);
+          completed.unshift(copy);
+          saveCompleted();
+          // Remove from active
+          removeTodo(selectedPath);
+          return;
+        }
+      }
+
+      // Escape - deselect, focus add bar
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        selectedPath = null;
+        document.getElementById('newTodo').focus();
+        render();
+        return;
+      }
+    });
+
+    document.getElementById('newTodo').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.metaKey) addTodo();
+    });
+
+    ipcRenderer.on('todos-changed', () => {
+      load();
+      render();
+    });
+
+    load();
+    render();
+  </script>
+</body>
+</html>
