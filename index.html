@@ -21,7 +21,42 @@
       height: 38px;
       background: #16213e;
       flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 0 12px;
     }
+
+    #pomo-badge {
+      -webkit-app-region: no-drag;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      transition: opacity 0.15s;
+    }
+    #pomo-badge.focus {
+      background: rgba(0, 153, 0, 0.18);
+      color: #4ad94a;
+      border: 1px solid rgba(0, 153, 0, 0.4);
+    }
+    #pomo-badge.breakp {
+      background: rgba(245, 197, 66, 0.15);
+      color: #f5c542;
+      border: 1px solid rgba(245, 197, 66, 0.4);
+    }
+    #pomo-badge.single {
+      background: rgba(26, 74, 138, 0.35);
+      color: #7db2ff;
+      border: 1px solid rgba(26, 74, 138, 0.7);
+    }
+    #pomo-badge:hover { opacity: 0.8; }
 
     .tabs {
       display: flex;
@@ -175,7 +210,7 @@
     }
 
     .checkbox.checked::after {
-      content: "\2713";
+      content: "";
       color: white;
       font-size: 12px;
       font-weight: bold;
@@ -559,7 +594,9 @@
   </style>
 </head>
 <body>
-  <div class="titlebar"></div>
+  <div class="titlebar">
+    <div id="pomo-badge" onclick="switchTab('pomodoro')" title="Pomodoro"></div>
+  </div>
   <div class="tabs">
     <div class="tab active" id="tab-active" onclick="switchTab('active')">Active <span class="count" id="count-active">0</span></div>
     <div class="tab" id="tab-completed" onclick="switchTab('completed')">Completed <span class="count" id="count-completed">0</span></div>
@@ -746,6 +783,7 @@
 
       // Write selection to file for menu bar app
       fs.writeFileSync(path.join(__dirname, 'selection.json'), JSON.stringify({ text: menuBarText() }));
+      updatePomoBadge();
     }
 
     function renderPomoTab() {
@@ -934,6 +972,28 @@
 
     function updateMenuBar() {
       fs.writeFileSync(path.join(__dirname, 'selection.json'), JSON.stringify({ text: menuBarText() }));
+      updatePomoBadge();
+    }
+
+    function updatePomoBadge() {
+      const badge = document.getElementById('pomo-badge');
+      if (!badge) return;
+      if (!pomoRunning) {
+        badge.style.display = 'none';
+        badge.className = '';
+        return;
+      }
+      const time = fmtTime(pomoRemaining);
+      let label, cls;
+      if (pomoMode === 'cycle') {
+        if (pomoPhase === 'break') { label = 'Break'; cls = 'breakp'; }
+        else { label = 'Focus'; cls = 'focus'; }
+      } else {
+        label = 'Pomodoro'; cls = 'single';
+      }
+      badge.textContent = label + ' \u00B7 ' + time;
+      badge.className = cls;
+      badge.style.display = 'inline-flex';
     }
 
     function hasTodayDescendant(node) {
@@ -2038,13 +2098,11 @@
       // Cmd+Shift+C → start a new pomodoro cycle (or stop running timer)
       if (e.metaKey && e.shiftKey && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
-        console.log('Cmd+Shift+C fired. pomoRunning=', pomoRunning, 'mode=', pomoMode);
         if (pomoRunning) {
           stopPomo();
         } else {
           pomoMode = 'cycle';
           startPomo();
-          if (currentTab !== 'pomodoro') switchTab('pomodoro');
         }
         return;
       }
