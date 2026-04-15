@@ -201,6 +201,25 @@ def cmd_due(args):
         print(f"Due date set on: {node['text']} → {args[1]}")
 
 
+def cmd_today(args):
+    todos = load()
+    path = args[0]
+    node, _, _ = find_by_path(todos, path)
+    if len(args) > 1 and args[1] == "--off":
+        node.pop("today", None)
+        save(todos)
+        print(f"Today flag cleared on: {node['text']}")
+        return
+    if node.get("today"):
+        node.pop("today", None)
+        save(todos)
+        print(f"Today flag cleared on: {node['text']}")
+    else:
+        node["today"] = True
+        save(todos)
+        print(f"Today flag set on: {node['text']}")
+
+
 def cmd_list(args):
     todos = load()
     if not todos:
@@ -233,6 +252,7 @@ COMMANDS = {
     "rm": cmd_remove,
     "edit": cmd_edit,
     "due": cmd_due,
+    "today": cmd_today,
     "list": cmd_list,
     "ls": cmd_list,
     "completed": cmd_completed,
