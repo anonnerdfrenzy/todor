@@ -620,8 +620,10 @@
     const path = require('path');
     const { ipcRenderer } = require('electron');
 
-    const DATA_FILE = path.join(__dirname, 'todos.json');
-    const COMPLETED_FILE = path.join(__dirname, 'completed.json');
+    const DATA_DIR = ipcRenderer.sendSync('get-data-dir');
+    const DATA_FILE = path.join(DATA_DIR, 'todos.json');
+    const COMPLETED_FILE = path.join(DATA_DIR, 'completed.json');
+    const SELECTION_FILE = path.join(DATA_DIR, 'selection.json');
     let todos = [];
     let completed = [];
     let expandedIds = new Set();
@@ -791,8 +793,10 @@
         lastActiveSelectedPath = selectedPath;
       }
 
-      // Write selection to file for menu bar app
-      fs.writeFileSync(path.join(__dirname, 'selection.json'), JSON.stringify({ text: menuBarText() }));
+      // Write selection to file (for CLI users) and push tray title via IPC
+      const mbText = menuBarText();
+      try { fs.writeFileSync(SELECTION_FILE, JSON.stringify({ text: mbText })); } catch {}
+      ipcRenderer.send('tray-title', mbText);
       updatePomoBadge();
     }
 
@@ -981,7 +985,9 @@
     }
 
     function updateMenuBar() {
-      fs.writeFileSync(path.join(__dirname, 'selection.json'), JSON.stringify({ text: menuBarText() }));
+      const mbText = menuBarText();
+      try { fs.writeFileSync(SELECTION_FILE, JSON.stringify({ text: mbText })); } catch {}
+      ipcRenderer.send('tray-title', mbText);
       updatePomoBadge();
     }
 

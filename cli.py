@@ -8,9 +8,10 @@ import uuid
 import copy
 from datetime import datetime
 
-DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(DIR, "todos.json")
-COMPLETED_FILE = os.path.join(DIR, "completed.json")
+DATA_DIR = os.path.expanduser("~/Library/Application Support/Todor")
+os.makedirs(DATA_DIR, exist_ok=True)
+DATA_FILE = os.path.join(DATA_DIR, "todos.json")
+COMPLETED_FILE = os.path.join(DATA_DIR, "completed.json")
 
 
 def load():

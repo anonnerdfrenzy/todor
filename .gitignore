@@ -3,3 +3,5 @@ todos.json
 completed.json
 selection.json
 .DS_Store
+dist/
+out/

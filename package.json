@@ -2,11 +2,48 @@
   "name": "todor",
   "version": "1.0.0",
   "main": "main.js",
+  "description": "A menu bar todo + pomodoro app for macOS",
+  "author": "brangus",
   "scripts": {
     "postinstall": "/usr/libexec/PlistBuddy -c 'Set :CFBundleName Todor' node_modules/electron/dist/Electron.app/Contents/Info.plist && /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName Todor' node_modules/electron/dist/Electron.app/Contents/Info.plist",
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder --mac dmg --universal"
   },
-  "dependencies": {
-    "electron": "^33.0.0"
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "io.brangus.todor",
+    "productName": "Todor",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "index.html",
+      "notes.html",
+      "icon.icns",
+      "icon_1024.png",
+      "tray_icon*.png",
+      "package.json",
+      "!cli.py",
+      "!menubar.py",
+      "!todos.json",
+      "!completed.json",
+      "!selection.json",
+      "!icon.iconset",
+      "!icon.svg",
+      "!dist"
+    ],
+    "mac": {
+      "icon": "icon.icns",
+      "target": "dmg",
+      "identity": null,
+      "category": "public.app-category.productivity"
+    },
+    "dmg": {
+      "artifactName": "Todor.dmg"
+    }
   }
 }

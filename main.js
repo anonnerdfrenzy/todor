@@ -1,9 +1,13 @@
-const { app, BrowserWindow, nativeImage, ipcMain } = require('electron');
+const { app, BrowserWindow, nativeImage, ipcMain, Tray, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-const DATA_FILE = path.join(__dirname, 'todos.json');
-const COMPLETED_FILE = path.join(__dirname, 'completed.json');
+// Data files live in the per-user application-support directory so the app
+// is distributable and survives updates.
+// Computed inside app.whenReady (DATA_DIR depends on app being ready).
+let DATA_DIR = null;
+let DATA_FILE = null;
+let COMPLETED_FILE = null;
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -12,6 +16,7 @@ if (!gotLock) {
 
   let mainWin = null;
   let notesWin = null;
+  let tray = null;
 
   app.on('second-instance', () => {
     if (mainWin) {
@@ -21,6 +26,9 @@ if (!gotLock) {
   });
 
   function ensureDataFile() {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
     if (!fs.existsSync(DATA_FILE)) {
       fs.writeFileSync(DATA_FILE, '[]');
     }
@@ -54,9 +62,41 @@ if (!gotLock) {
     });
   }
 
+  function createTray() {
+    const iconPath = path.join(__dirname, 'tray_iconTemplate.png');
+    const img = nativeImage.createFromPath(iconPath);
+    img.setTemplateImage(true);
+    tray = new Tray(img);
+    tray.setToolTip('Todor');
+    const ctxMenu = Menu.buildFromTemplate([
+      { label: 'Open Todor', click: showMainWindow },
+      { type: 'separator' },
+      { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } },
+    ]);
+    tray.setContextMenu(ctxMenu);
+    tray.on('click', showMainWindow);
+  }
+
+  function showMainWindow() {
+    if (!mainWin || mainWin.isDestroyed()) {
+      createWindow();
+      return;
+    }
+    if (mainWin.isMinimized()) mainWin.restore();
+    mainWin.show();
+    mainWin.focus();
+  }
+
+  // Renderer asks for the data directory at startup
+  ipcMain.on('get-data-dir', (e) => { e.returnValue = DATA_DIR; });
+
+  // Renderer pushes the menu-bar title whenever it changes
+  ipcMain.on('tray-title', (e, text) => {
+    if (tray && !tray.isDestroyed()) tray.setTitle(text || '');
+  });
+
   // Open notes editor window
   ipcMain.on('open-notes', (event, { todoId, todoText, notes }) => {
-    // If a notes window is already open, close it first
     if (notesWin && !notesWin.isDestroyed()) {
       notesWin.close();
     }
@@ -87,7 +127,6 @@ if (!gotLock) {
     });
   });
 
-  // Save notes back from editor
   ipcMain.on('save-notes', (event, { todoId, notes }) => {
     if (mainWin && !mainWin.isDestroyed()) {
       mainWin.webContents.send('notes-saved', { todoId, notes });
@@ -95,18 +134,40 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    app.setName('Todor');
+    // On some Electron versions setName alone doesn't repath userData;
+    // force it to the "Todor" folder for consistency across dev + packaged.
+    DATA_DIR = path.join(app.getPath('appData'), 'Todor');
+    DATA_FILE = path.join(DATA_DIR, 'todos.json');
+    COMPLETED_FILE = path.join(DATA_DIR, 'completed.json');
     ensureDataFile();
     if (process.platform === 'darwin') {
       const icon = nativeImage.createFromPath(path.join(__dirname, 'icon_1024.png'));
       app.dock.setIcon(icon);
     }
-    app.setName('Todor');
+    createTray();
     createWindow();
   });
 
-  app.on('window-all-closed', () => {
-    fs.unwatchFile(DATA_FILE);
-    fs.unwatchFile(COMPLETED_FILE);
-    app.quit();
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    } else {
+      showMainWindow();
+    }
+  });
+
+  // Don't quit on window close — keep the tray alive.
+  app.on('window-all-closed', (e) => {
+    if (process.platform !== 'darwin') {
+      fs.unwatchFile(DATA_FILE);
+      fs.unwatchFile(COMPLETED_FILE);
+      app.quit();
+    }
+  });
+
+  app.on('before-quit', () => {
+    if (DATA_FILE) fs.unwatchFile(DATA_FILE);
+    if (COMPLETED_FILE) fs.unwatchFile(COMPLETED_FILE);
   });
 }
