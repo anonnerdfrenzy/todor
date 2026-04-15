@@ -23,8 +23,28 @@
       flex-shrink: 0;
       display: flex;
       align-items: center;
-      justify-content: flex-end;
-      padding: 0 12px;
+      justify-content: space-between;
+      padding: 0 12px 0 80px; /* left padding leaves room for traffic-light buttons */
+    }
+
+    .cmd-hint {
+      -webkit-app-region: no-drag;
+      font-size: 11px;
+      color: #556;
+      cursor: pointer;
+      user-select: none;
+      letter-spacing: 0.3px;
+      transition: color 0.15s;
+    }
+    .cmd-hint:hover { color: #99a; }
+    .cmd-hint kbd {
+      background: #0f3460;
+      border-radius: 3px;
+      padding: 1px 5px;
+      margin-right: 4px;
+      color: #99a;
+      font-family: -apple-system, monospace;
+      font-size: 10px;
     }
 
     #pomo-badge {
@@ -210,10 +230,7 @@
     }
 
     .checkbox.checked::after {
-      content: "\2713";
-      color: white;
-      font-size: 12px;
-      font-weight: bold;
+      content: "";
     }
 
     .checkbox.readonly {
@@ -595,6 +612,7 @@
 </head>
 <body>
   <div class="titlebar">
+    <span class="cmd-hint" onclick="openPalette()" title="Open command palette"><kbd>&#x2318;K</kbd>commands</span>
     <div id="pomo-badge" onclick="switchTab('pomodoro')" title="Pomodoro"></div>
   </div>
   <div class="tabs">
@@ -604,7 +622,7 @@
   </div>
   <div class="container" id="list"></div>
   <div class="add-bar" id="add-bar">
-    <input type="text" id="newTodo" placeholder="Add a todo..." autofocus>
+    <input type="text" id="newTodo" placeholder="Add a todo..." autofocus onkeydown="if(event.key==='Escape'&&editState){event.preventDefault();cancelEdit();}">
     <button onclick="addTodo()">Add</button>
   </div>
 
@@ -632,6 +650,17 @@
     let selectedPath = null; // dot-path string of selected todo, null = none
     let lastActiveSelectedPath = null; // persists across tab switches for menu bar
     let todayOnlyMode = false;
+    // When editing a todo (via Cmd+E), we splice it out and put its text in the
+    // add bar. editState lets us restore on Escape, and replace-in-place on commit.
+    // We resolve the parent list from parentPath at commit time (not cached) so
+    // file-watch reloads that reassign `todos` don't orphan us.
+    let editState = null; // { parentPath, idx, originalNode, isSub }
+
+    function editParentList() {
+      if (!editState) return null;
+      if (!editState.parentPath) return todos;
+      try { return getByPath(editState.parentPath).node.children; } catch { return null; }
+    }
 
     // Pomodoro timer state
     let pomoSeconds = 10 * 60; // default 10 min (single-timer mode)
@@ -728,15 +757,15 @@
         const time = fmtTime(pomoRemaining);
         if (pomoMode === 'cycle') {
           if (pomoPhase === 'break') {
-            return time + ' \u2014 Break';
+            return time + ', Break';
           }
           // focus phase
-          if (taskText) return time + ' \u2014 ' + taskText;
-          return time + ' \u2014 Focus';
+          if (taskText) return time + ', ' + taskText;
+          return time + ', Focus';
         }
         // single mode
-        if (taskText) return time + ' \u2014 ' + taskText;
-        return time + ' \u2014 Pomodoro';
+        if (taskText) return time + ', ' + taskText;
+        return time + ', Pomodoro';
       }
       return taskText;
     }
@@ -1436,7 +1465,7 @@
         { label: 'Add sub-todo to selected', shortcut: '\u2318\u21E7=',
           run: () => { if (hasSelection() && isActive()) { const { node } = getByPath(selectedPath); startSubAdd(selectedPath, node.id); } },
           enabled: hasSelection() && isActive() },
-        { label: 'Edit selected todo', shortcut: 'E', enabled: hasSelection() && isActive() },
+        { label: 'Edit selected todo', shortcut: '\u2318E', enabled: hasSelection() && isActive() },
         { label: 'Open notes for selected', shortcut: 'N',
           run: () => { if (hasSelection()) openNotes(selectedPath); },
           enabled: hasSelection() },
@@ -1453,7 +1482,7 @@
         { label: 'Expand/collapse selected', shortcut: '\u21B5', enabled: hasSelection() && isActive() },
         { label: 'Add sibling todo below', shortcut: '\u21E7+', enabled: hasSelection() && isActive() },
         { label: 'Archive completed sub-todo', shortcut: '\u21E7Esc', enabled: hasSelection() && isActive() },
-        { label: 'Start pomodoro cycle (or stop running)', shortcut: '\u2318\u21E7C',
+        { label: 'Start pomodoro cycle (or stop running)', shortcut: '\u2318\u21E7P',
           run: () => { if (pomoRunning) stopPomo(); else { pomoMode = 'cycle'; startPomo(); } }, enabled: true },
         { label: 'Next tab', shortcut: '\u2318\u21E7]',
           run: () => { const t = ['active','completed','pomodoro']; switchTab(t[(t.indexOf(currentTab)+1)%t.length]); }, enabled: true },
@@ -1518,12 +1547,53 @@
       const input = document.getElementById('newTodo');
       const text = input.value.trim();
       if (!text) return;
+      // If we're committing an in-progress edit, restore the original node at
+      // its old position with the new text, preserving children/notes/etc.
+      if (editState && !editState.isSub) {
+        const list = editParentList();
+        if (list) {
+          const restored = editState.originalNode;
+          restored.text = text;
+          const insertIdx = Math.min(editState.idx, list.length);
+          list.splice(insertIdx, 0, restored);
+          const newPath = String(insertIdx);
+          editState = null;
+          input.value = '';
+          saveTodos();
+          selectedPath = newPath;
+          render();
+          return;
+        }
+        editState = null;
+      }
       const todo = { id: genId(), text, completed: false, notes: '', created: new Date().toISOString(), children: [] };
       if (todayOnlyMode) todo.today = true;
       todos.push(todo);
       input.value = '';
       saveTodos();
       render();
+    }
+
+    // Restore the in-progress edit (called from Escape on add bar or sub-add input)
+    function cancelEdit() {
+      if (!editState) return false;
+      const list = editParentList();
+      if (list) {
+        const insertIdx = Math.min(editState.idx, list.length);
+        list.splice(insertIdx, 0, editState.originalNode);
+        const restoredPath = editState.parentPath
+          ? editState.parentPath + '.' + insertIdx
+          : String(insertIdx);
+        selectedPath = restoredPath;
+        saveTodos();
+      }
+      editState = null;
+      const newInput = document.getElementById('newTodo');
+      if (newInput) newInput.value = '';
+      const subAdd = document.querySelector('.sub-add');
+      if (subAdd) subAdd.remove();
+      render();
+      return true;
     }
 
     function completeAll(n) {
@@ -1722,7 +1792,7 @@
         const div = document.createElement('div');
         div.className = 'sub-add';
         div.dataset.path = parentPath;
-        div.innerHTML = '<input type="text" placeholder="Add sub-todo..." onkeydown="if(event.key===\'Enter\'&&event.metaKey)commitSubAdd(\'' + parentPath + '\',\'' + parentId + '\',this);if(event.key===\'Escape\')this.closest(\'.sub-add\').remove()">' +
+        div.innerHTML = '<input type="text" placeholder="Add sub-todo..." onkeydown="if(event.key===\'Enter\'&&event.metaKey)commitSubAdd(\'' + parentPath + '\',\'' + parentId + '\',this);if(event.key===\'Escape\'){if(editState){event.preventDefault();cancelEdit();}else{this.closest(\'.sub-add\').remove();}}">' +
           '<button onclick="commitSubAdd(\'' + parentPath + '\',\'' + parentId + '\',this.previousElementSibling)">Add</button>';
 
         const addBar = document.querySelector('.add-bar');
@@ -1735,6 +1805,26 @@
       const text = inputEl.value.trim();
       if (!text) return;
       const { node } = getByPath(parentPath);
+      // In-progress sub-todo edit — restore at original index with new text
+      if (editState && editState.isSub && editState.parentPath === parentPath) {
+        const list = editParentList();
+        if (list) {
+          const restored = editState.originalNode;
+          restored.text = text;
+          const insertIdx = Math.min(editState.idx, list.length);
+          list.splice(insertIdx, 0, restored);
+          const newPath = parentPath + '.' + insertIdx;
+          editState = null;
+          expandedIds.add(parentId);
+          saveTodos();
+          selectedPath = newPath;
+          const subAdd = inputEl.closest('.sub-add');
+          if (subAdd) subAdd.remove();
+          render();
+          return;
+        }
+        editState = null;
+      }
       const sub = { id: genId(), text, completed: false, notes: '', created: new Date().toISOString(), children: [] };
       if (todayOnlyMode) sub.today = true;
       node.children.push(sub);
@@ -2111,8 +2201,8 @@
         }
       }
 
-      // Cmd+Shift+C → start a new pomodoro cycle (or stop running timer)
-      if (e.metaKey && e.shiftKey && (e.key === 'c' || e.key === 'C')) {
+      // Cmd+Shift+P → start a new pomodoro cycle (or stop running timer)
+      if (e.metaKey && e.shiftKey && (e.key === 'p' || e.key === 'P')) {
         e.preventDefault();
         if (pomoRunning) {
           stopPomo();
@@ -2356,14 +2446,17 @@
         return;
       }
 
-      // E - edit selected todo: move text to appropriate add bar
-      if (e.key === 'e' || e.key === 'E') {
+      // Cmd+E - edit selected todo: move text to appropriate add bar
+      if ((e.key === 'e' || e.key === 'E') && e.metaKey && !e.shiftKey) {
         e.preventDefault();
         const parts = selectedPath.split('.');
         const isTopLevel = parts.length === 1;
         const { node, list, idx } = getByPath(selectedPath);
         const text = node.text;
+        const originalNode = JSON.parse(JSON.stringify(node));
+        const parentPath = isTopLevel ? '' : parts.slice(0, -1).join('.');
         list.splice(idx, 1);
+        editState = { parentPath, idx, originalNode, isSub: !isTopLevel };
         saveTodos();
         selectedPath = null;
 
@@ -2374,8 +2467,6 @@
           input.focus();
           input.select();
         } else {
-          // Sub-todo: open sub-add under parent
-          const parentPath = parts.slice(0, -1).join('.');
           const parentNode = getByPath(parentPath).node;
           expandedIds.add(parentNode.id);
           render();
@@ -2446,6 +2537,10 @@
     ipcRenderer.on('todos-changed', () => {
       load();
       render();
+    });
+
+    ipcRenderer.on('open-palette', () => {
+      if (paletteOpen) closePalette(); else openPalette();
     });
 
     load();

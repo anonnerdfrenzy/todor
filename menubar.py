@@ -5,8 +5,8 @@ import rumps
 import json
 import os
 
-DIR = os.path.dirname(os.path.abspath(__file__))
-SELECTION_FILE = os.path.join(DIR, "selection.json")
+DATA_DIR = os.path.expanduser("~/Library/Application Support/Todor")
+SELECTION_FILE = os.path.join(DATA_DIR, "selection.json")
 
 
 class TodorMenuBar(rumps.App):

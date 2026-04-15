@@ -5,3 +5,6 @@ selection.json
 .DS_Store
 dist/
 out/
+pybin/
+build/
+*.spec

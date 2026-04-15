@@ -1,10 +1,9 @@
-const { app, BrowserWindow, nativeImage, ipcMain, Tray, Menu } = require('electron');
+const { app, BrowserWindow, nativeImage, ipcMain, Tray, Menu, dialog, clipboard, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 // Data files live in the per-user application-support directory so the app
 // is distributable and survives updates.
-// Computed inside app.whenReady (DATA_DIR depends on app being ready).
 let DATA_DIR = null;
 let DATA_FILE = null;
 let COMPLETED_FILE = null;
@@ -22,6 +21,8 @@ if (!gotLock) {
     if (mainWin) {
       if (mainWin.isMinimized()) mainWin.restore();
       mainWin.focus();
+    } else {
+      showMainWindow();
     }
   });
 
@@ -51,7 +52,6 @@ if (!gotLock) {
     });
 
     mainWin.loadFile('index.html');
-
     mainWin.on('closed', () => { mainWin = null; });
 
     fs.watchFile(DATA_FILE, { interval: 1000 }, () => {
@@ -60,21 +60,6 @@ if (!gotLock) {
     fs.watchFile(COMPLETED_FILE, { interval: 1000 }, () => {
       if (mainWin) mainWin.webContents.send('todos-changed');
     });
-  }
-
-  function createTray() {
-    const iconPath = path.join(__dirname, 'tray_iconTemplate.png');
-    const img = nativeImage.createFromPath(iconPath);
-    img.setTemplateImage(true);
-    tray = new Tray(img);
-    tray.setToolTip('Todor');
-    const ctxMenu = Menu.buildFromTemplate([
-      { label: 'Open Todor', click: showMainWindow },
-      { type: 'separator' },
-      { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } },
-    ]);
-    tray.setContextMenu(ctxMenu);
-    tray.on('click', showMainWindow);
   }
 
   function showMainWindow() {
@@ -87,6 +72,132 @@ if (!gotLock) {
     mainWin.focus();
   }
 
+  function getCliPath() {
+    // Packaged: extraResources places cli.py at process.resourcesPath.
+    // Dev: it's in the repo root next to main.js.
+    const candidates = [
+      path.join(process.resourcesPath || '', 'cli.py'),
+      path.join(__dirname, 'cli.py'),
+    ];
+    return candidates.find(p => p && fs.existsSync(p));
+  }
+
+  function showClaudeSetup() {
+    const cliPath = getCliPath();
+    if (!cliPath) {
+      dialog.showErrorBox('Todor', 'Could not locate cli.py. Reinstall Todor.');
+      return;
+    }
+    const prompt = `Please add a "Todor" section to my user-level Claude memory file at \`~/.claude/CLAUDE.md\` so you know how to read and modify my todos. Create the file if it doesn't exist; if a Todor section is already there, replace just that section without touching anything else. Use this exact content:
+
+## Todor (Todo App)
+
+A macOS todo + pomodoro app. Data lives at \`~/Library/Application Support/Todor/\`. The bundled CLI lets you read and modify todos directly.
+
+### CLI commands:
+\`\`\`bash
+python3 "${cliPath}" list                              # List all todos
+python3 "${cliPath}" add "Task name"                   # Add top-level todo (appended to END)
+python3 "${cliPath}" add "Subtask" --parent=0          # Add sub-todo (dot-path parent)
+python3 "${cliPath}" add "X" --due=2026-04-22          # Add with due date
+python3 "${cliPath}" complete 0                        # Complete todo + children
+python3 "${cliPath}" note 0 "Some notes"               # Set notes
+python3 "${cliPath}" edit 0 New text                   # Rename
+python3 "${cliPath}" today 0                           # Toggle Today flag
+python3 "${cliPath}" due 0 2026-04-22                  # Set due date
+python3 "${cliPath}" remove 0                          # Remove (DESTRUCTIVE)
+\`\`\`
+
+### How to use it:
+- "Add a todo for X" \u2192 \`python3 "${cliPath}" add "X"\`
+- "What are my todos" \u2192 \`python3 "${cliPath}" list\`
+- New top-level todos go to the END \u2014 verify index with \`list\` before \`remove\`
+- Sub-todos use dot-path indexing: \`0.1\` is the second child of the first todo
+- The GUI auto-refreshes when the CLI modifies data
+`;
+    clipboard.writeText(prompt);
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Setup Claude Code for Todor',
+      message: 'Prompt copied to clipboard.',
+      detail: 'Open Claude Code and paste it. Claude Code will add a Todor section to your ~/.claude/CLAUDE.md so it knows how to read and add todos for you in future conversations.',
+      buttons: ['OK'],
+      defaultId: 0,
+    });
+  }
+
+  function createTray() {
+    // Empty image so only the title text appears in the menu bar.
+    const img = nativeImage.createEmpty();
+    tray = new Tray(img);
+    tray.setToolTip('Todor');
+    tray.setIgnoreDoubleClickEvents(true);
+    const ctxMenu = Menu.buildFromTemplate([
+      { label: 'Open Todor', click: showMainWindow },
+      { label: 'Setup Claude Code\u2026', click: showClaudeSetup },
+      { type: 'separator' },
+      { label: 'Quit', click: () => { app.quit(); } },
+    ]);
+    tray.setContextMenu(ctxMenu);
+    tray.on('click', showMainWindow);
+    tray.setTitle('Todor');
+  }
+
+  function buildAppMenu() {
+    const template = [
+      {
+        label: 'Todor',
+        submenu: [
+          { role: 'about' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' },
+        ],
+      },
+      {
+        label: 'Edit',
+        submenu: [
+          { role: 'undo' },
+          { role: 'redo' },
+          { type: 'separator' },
+          { role: 'cut' },
+          { role: 'copy' },
+          { role: 'paste' },
+          { role: 'selectAll' },
+        ],
+      },
+      {
+        label: 'View',
+        submenu: [
+          { role: 'reload' },
+          { role: 'togglefullscreen' },
+        ],
+      },
+      { role: 'windowMenu' },
+      {
+        role: 'help',
+        submenu: [
+          {
+            label: 'See All Commands',
+            accelerator: 'CmdOrCtrl+K',
+            click: () => {
+              if (mainWin && !mainWin.isDestroyed()) {
+                showMainWindow();
+                mainWin.webContents.send('open-palette');
+              }
+            },
+          },
+          { type: 'separator' },
+          { label: 'Setup Claude Code\u2026', click: showClaudeSetup },
+        ],
+      },
+    ];
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  }
+
   // Renderer asks for the data directory at startup
   ipcMain.on('get-data-dir', (e) => { e.returnValue = DATA_DIR; });
 
@@ -95,7 +206,6 @@ if (!gotLock) {
     if (tray && !tray.isDestroyed()) tray.setTitle(text || '');
   });
 
-  // Open notes editor window
   ipcMain.on('open-notes', (event, { todoId, todoText, notes }) => {
     if (notesWin && !notesWin.isDestroyed()) {
       notesWin.close();
@@ -135,8 +245,6 @@ if (!gotLock) {
 
   app.whenReady().then(() => {
     app.setName('Todor');
-    // On some Electron versions setName alone doesn't repath userData;
-    // force it to the "Todor" folder for consistency across dev + packaged.
     DATA_DIR = path.join(app.getPath('appData'), 'Todor');
     DATA_FILE = path.join(DATA_DIR, 'todos.json');
     COMPLETED_FILE = path.join(DATA_DIR, 'completed.json');
@@ -145,6 +253,7 @@ if (!gotLock) {
       const icon = nativeImage.createFromPath(path.join(__dirname, 'icon_1024.png'));
       app.dock.setIcon(icon);
     }
+    buildAppMenu();
     createTray();
     createWindow();
   });
@@ -157,11 +266,10 @@ if (!gotLock) {
     }
   });
 
-  // Don't quit on window close — keep the tray alive.
-  app.on('window-all-closed', (e) => {
+  app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
-      fs.unwatchFile(DATA_FILE);
-      fs.unwatchFile(COMPLETED_FILE);
+      if (DATA_FILE) fs.unwatchFile(DATA_FILE);
+      if (COMPLETED_FILE) fs.unwatchFile(COMPLETED_FILE);
       app.quit();
     }
   });

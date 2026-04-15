@@ -10,7 +10,7 @@
     "dist": "electron-builder --mac dmg --universal"
   },
   "devDependencies": {
-    "electron": "^33.0.0",
+    "electron": "^41.2.0",
     "electron-builder": "^25.1.8"
   },
   "build": {
@@ -40,7 +40,10 @@
       "icon": "icon.icns",
       "target": "dmg",
       "identity": null,
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "extraResources": [
+        { "from": "cli.py", "to": "cli.py" }
+      ]
     },
     "dmg": {
       "artifactName": "Todor.dmg"
