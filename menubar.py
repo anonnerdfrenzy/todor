@@ -23,7 +23,7 @@ class TodorMenuBar(rumps.App):
             text = data.get("text")
             if text:
                 display = text if len(text) <= 40 else text[:39] + "\u2026"
-                self.title = "\u2713 " + display
+                self.title = display
             else:
                 self.title = "Todor"
         except (FileNotFoundError, json.JSONDecodeError):
