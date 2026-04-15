@@ -601,7 +601,7 @@
     let pomoPreset = 10;
 
     // Cycle-mode state
-    let pomoMode = 'single'; // 'single' | 'cycle'
+    let pomoMode = 'cycle'; // 'single' | 'cycle'
     let pomoFocusSeconds = 25 * 60;
     let pomoBreakSeconds = 5 * 60;
     let pomoFocusInputVal = '25m';
@@ -1369,6 +1369,8 @@
         { label: 'Expand/collapse selected', shortcut: '\u21B5', enabled: hasSelection() && isActive() },
         { label: 'Add sibling todo below', shortcut: '\u21E7+', enabled: hasSelection() && isActive() },
         { label: 'Archive completed sub-todo', shortcut: '\u21E7Esc', enabled: hasSelection() && isActive() },
+        { label: 'Start pomodoro cycle (or stop running)', shortcut: '\u2318\u21E7C',
+          run: () => { if (pomoRunning) stopPomo(); else { pomoMode = 'cycle'; startPomo(); } }, enabled: true },
         { label: 'Next tab', shortcut: '\u2318\u21E7]',
           run: () => { const t = ['active','completed','pomodoro']; switchTab(t[(t.indexOf(currentTab)+1)%t.length]); }, enabled: true },
         { label: 'Previous tab', shortcut: '\u2318\u21E7[',
@@ -2019,6 +2021,18 @@
           render();
           return;
         }
+      }
+
+      // Cmd+Shift+C → start a new pomodoro cycle (or stop running timer)
+      if (e.metaKey && e.shiftKey && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        if (pomoRunning) {
+          stopPomo();
+        } else {
+          pomoMode = 'cycle';
+          startPomo();
+        }
+        return;
       }
 
       // Cmd+T → toggle Today flag on selected todo (active tab only)
