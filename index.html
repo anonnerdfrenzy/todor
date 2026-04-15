@@ -455,7 +455,7 @@
       font-style: italic;
     }
 
-    .break-container {
+    .pomo-container {
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -464,7 +464,7 @@
       gap: 24px;
     }
 
-    .break-time {
+    .pomo-time {
       font-size: 72px;
       font-weight: 200;
       font-variant-numeric: tabular-nums;
@@ -472,14 +472,14 @@
       letter-spacing: 2px;
     }
 
-    .break-time.running { color: #009900; }
+    .pomo-time.running { color: #009900; }
 
-    .break-presets {
+    .pomo-presets {
       display: flex;
       gap: 10px;
     }
 
-    .break-presets button {
+    .pomo-presets button {
       background: #0f3460;
       color: #8899aa;
       border: none;
@@ -490,15 +490,15 @@
       transition: all 0.15s;
     }
 
-    .break-presets button:hover { background: #1a4a8a; color: #e0e0e0; }
-    .break-presets button.selected { background: #009900; color: white; }
+    .pomo-presets button:hover { background: #1a4a8a; color: #e0e0e0; }
+    .pomo-presets button.selected { background: #009900; color: white; }
 
-    .break-controls {
+    .pomo-controls {
       display: flex;
       gap: 12px;
     }
 
-    .break-controls button {
+    .pomo-controls button {
       background: #16213e;
       color: #8899aa;
       border: 1px solid #0f3460;
@@ -509,15 +509,15 @@
       transition: all 0.15s;
     }
 
-    .break-controls button:hover { background: #0f3460; color: #e0e0e0; }
+    .pomo-controls button:hover { background: #0f3460; color: #e0e0e0; }
 
-    .break-controls button.primary {
+    .pomo-controls button.primary {
       background: #009900;
       color: white;
       border-color: #009900;
     }
 
-    .break-controls button.primary:hover { background: #007700; }
+    .pomo-controls button.primary:hover { background: #007700; }
   </style>
 </head>
 <body>
@@ -525,7 +525,7 @@
   <div class="tabs">
     <div class="tab active" id="tab-active" onclick="switchTab('active')">Active <span class="count" id="count-active">0</span></div>
     <div class="tab" id="tab-completed" onclick="switchTab('completed')">Completed <span class="count" id="count-completed">0</span></div>
-    <div class="tab" id="tab-break" onclick="switchTab('break')">Break</div>
+    <div class="tab" id="tab-pomodoro" onclick="switchTab('pomodoro')">Pomodoro</div>
   </div>
   <div class="container" id="list"></div>
   <div class="add-bar" id="add-bar">
@@ -555,12 +555,12 @@
     let selectedPath = null; // dot-path string of selected todo, null = none
     let todayOnlyMode = false;
 
-    // Break timer state
-    let breakSeconds = 10 * 60; // default 10 min
-    let breakRemaining = 0;
-    let breakRunning = false;
-    let breakInterval = null;
-    let breakPreset = 10;
+    // Pomodoro timer state
+    let pomoSeconds = 10 * 60; // default 10 min
+    let pomoRemaining = 0;
+    let pomoRunning = false;
+    let pomoInterval = null;
+    let pomoPreset = 10;
 
     function load() {
       try { todos = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')); } catch { todos = []; }
@@ -605,15 +605,32 @@
       selectedPath = null;
       document.getElementById('tab-active').classList.toggle('active', tab === 'active');
       document.getElementById('tab-completed').classList.toggle('active', tab === 'completed');
-      document.getElementById('tab-break').classList.toggle('active', tab === 'break');
+      document.getElementById('tab-pomodoro').classList.toggle('active', tab === 'pomodoro');
       document.getElementById('add-bar').style.display = tab === 'active' ? 'flex' : 'none';
       render();
     }
 
     function fmtTime(secs) {
-      const m = Math.floor(secs / 60);
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
       const s = secs % 60;
+      if (h > 0) {
+        return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+      }
       return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+
+    function menuBarText() {
+      let taskText = null;
+      if (selectedPath !== null && currentTab === 'active') {
+        try { taskText = getByPath(selectedPath).node.text; } catch {}
+      }
+      if (pomoRunning) {
+        const time = fmtTime(pomoRemaining);
+        if (taskText) return taskText + ' \u2014 ' + time;
+        return 'Pomodoro \u2014 ' + time;
+      }
+      return taskText;
     }
 
     function render() {
@@ -653,8 +670,8 @@
             list.innerHTML = toggle + renderCompletedByTree(completed);
           }
         }
-      } else if (currentTab === 'break') {
-        list.innerHTML = renderBreakTab();
+      } else if (currentTab === 'pomodoro') {
+        list.innerHTML = renderPomoTab();
       }
 
       // Scroll selected into view
@@ -664,44 +681,38 @@
       }
 
       // Write selection to file for menu bar app
-      let selText = null;
-      if (breakRunning) {
-        selText = 'Break ' + fmtTime(breakRemaining);
-      } else if (selectedPath !== null && currentTab === 'active') {
-        try { selText = getByPath(selectedPath).node.text; } catch {}
-      }
-      fs.writeFileSync(path.join(__dirname, 'selection.json'), JSON.stringify({ text: selText }));
+      fs.writeFileSync(path.join(__dirname, 'selection.json'), JSON.stringify({ text: menuBarText() }));
     }
 
-    function renderBreakTab() {
-      const display = breakRunning ? fmtTime(breakRemaining) : fmtTime(breakSeconds);
-      let html = '<div class="break-container">';
-      html += '<div class="break-time' + (breakRunning ? ' running' : '') + '">' + display + '</div>';
-      if (!breakRunning) {
+    function renderPomoTab() {
+      const display = pomoRunning ? fmtTime(pomoRemaining) : fmtTime(pomoSeconds);
+      let html = '<div class="pomo-container">';
+      html += '<div class="pomo-time' + (pomoRunning ? ' running' : '') + '">' + display + '</div>';
+      if (!pomoRunning) {
         html += '<div style="display:flex;gap:8px;align-items:center">';
-        html += '<input type="text" id="breakInput" placeholder="e.g. 5, 1h30m, 90m" value="' + breakInputVal + '" style="background:#1a1a2e;border:1px solid #0f3460;border-radius:6px;padding:8px 12px;color:#e0e0e0;font-size:16px;width:180px;text-align:center;outline:none;" oninput="onBreakInput(this.value)" onkeydown="if(event.key===\'Enter\'||event.metaKey&&event.key===\'Enter\'){event.preventDefault();startBreak()}">';
+        html += '<input type="text" id="pomoInput" placeholder="e.g. 5, 1h30m, 90m" value="' + pomoInputVal + '" style="background:#1a1a2e;border:1px solid #0f3460;border-radius:6px;padding:8px 12px;color:#e0e0e0;font-size:16px;width:180px;text-align:center;outline:none;" oninput="onPomoInput(this.value)" onkeydown="if(event.key===\'Enter\'||event.metaKey&&event.key===\'Enter\'){event.preventDefault();startPomo()}">';
         html += '</div>';
-        html += '<div class="break-presets">';
-        [5, 10, 15, 20, 30, 60].forEach(m => {
-          html += '<button onclick="setBreakPreset(' + m + ')">' + (m >= 60 ? (m/60) + 'h' : m + 'm') + '</button>';
+        html += '<div class="pomo-presets">';
+        [5, 10, 15, 25, 30, 60].forEach(m => {
+          html += '<button onclick="setPomoPreset(' + m + ')">' + (m >= 60 ? (m/60) + 'h' : m + 'm') + '</button>';
         });
         html += '</div>';
       }
-      html += '<div class="break-controls">';
-      if (breakRunning) {
-        html += '<button class="primary" onclick="stopBreak()">Stop</button>';
+      html += '<div class="pomo-controls">';
+      if (pomoRunning) {
+        html += '<button class="primary" onclick="stopPomo()">Stop</button>';
       } else {
-        html += '<button class="primary" onclick="startBreak()">Start</button>';
+        html += '<button class="primary" onclick="startPomo()">Start</button>';
       }
-      html += '<button onclick="resetBreak()">Reset</button>';
+      html += '<button onclick="resetPomo()">Reset</button>';
       html += '</div>';
       html += '</div>';
       return html;
     }
 
-    let breakInputVal = '10m';
+    let pomoInputVal = '10m';
 
-    function parseBreakInput(val) {
+    function parsePomoInput(val) {
       val = val.trim().toLowerCase();
       if (!val) return 0;
       // Try "1h30m", "1h", "30m", or just a number (minutes)
@@ -717,67 +728,60 @@
       return totalSeconds;
     }
 
-    function onBreakInput(val) {
-      breakInputVal = val;
-      const secs = parseBreakInput(val);
+    function onPomoInput(val) {
+      pomoInputVal = val;
+      const secs = parsePomoInput(val);
       if (secs > 0) {
-        breakSeconds = secs;
-        breakRemaining = secs;
+        pomoSeconds = secs;
+        pomoRemaining = secs;
         // Update display without full re-render (avoids losing focus)
-        const timeEl = document.querySelector('.break-time');
+        const timeEl = document.querySelector('.pomo-time');
         if (timeEl) timeEl.textContent = fmtTime(secs);
       }
     }
 
-    function setBreakPreset(mins) {
-      if (breakRunning) return;
-      breakInputVal = mins >= 60 ? (mins/60) + 'h' : mins + 'm';
-      breakSeconds = mins * 60;
-      breakRemaining = breakSeconds;
+    function setPomoPreset(mins) {
+      if (pomoRunning) return;
+      pomoInputVal = mins >= 60 ? (mins/60) + 'h' : mins + 'm';
+      pomoSeconds = mins * 60;
+      pomoRemaining = pomoSeconds;
       render();
       // Focus the input after render
-      setTimeout(() => { const el = document.getElementById('breakInput'); if (el) { el.focus(); el.select(); } }, 0);
+      setTimeout(() => { const el = document.getElementById('pomoInput'); if (el) { el.focus(); el.select(); } }, 0);
     }
 
-    function startBreak() {
-      if (breakRunning) return;
-      if (breakRemaining <= 0) breakRemaining = breakSeconds;
-      breakRunning = true;
+    function startPomo() {
+      if (pomoRunning) return;
+      if (pomoRemaining <= 0) pomoRemaining = pomoSeconds;
+      pomoRunning = true;
       render();
-      breakInterval = setInterval(() => {
-        breakRemaining--;
-        if (breakRemaining <= 0) {
-          breakRemaining = 0;
-          stopBreak();
-          // Notify break is over
-          new Notification('Break over!', { body: 'Time to get back to work.' });
+      pomoInterval = setInterval(() => {
+        pomoRemaining--;
+        if (pomoRemaining <= 0) {
+          pomoRemaining = 0;
+          stopPomo();
+          // Notify pomodoro is done
+          new Notification('Time\u2019s up!', { body: 'Pomodoro finished.' });
         }
-        if (currentTab === 'break') render();
-        // Always update menu bar
-        else updateMenuBar();
+        updateMenuBar();
+        if (currentTab === 'pomodoro') render();
       }, 1000);
     }
 
-    function stopBreak() {
-      breakRunning = false;
-      if (breakInterval) { clearInterval(breakInterval); breakInterval = null; }
+    function stopPomo() {
+      pomoRunning = false;
+      if (pomoInterval) { clearInterval(pomoInterval); pomoInterval = null; }
       render();
     }
 
-    function resetBreak() {
-      stopBreak();
-      breakRemaining = breakSeconds;
+    function resetPomo() {
+      stopPomo();
+      pomoRemaining = pomoSeconds;
       render();
     }
 
     function updateMenuBar() {
-      let selText = null;
-      if (breakRunning) {
-        selText = 'Break ' + fmtTime(breakRemaining);
-      } else if (selectedPath !== null && currentTab === 'active') {
-        try { selText = getByPath(selectedPath).node.text; } catch {}
-      }
-      fs.writeFileSync(path.join(__dirname, 'selection.json'), JSON.stringify({ text: selText }));
+      fs.writeFileSync(path.join(__dirname, 'selection.json'), JSON.stringify({ text: menuBarText() }));
     }
 
     function hasTodayDescendant(node) {
@@ -1222,9 +1226,9 @@
         { label: 'Add sibling todo below', shortcut: '\u21E7+', enabled: hasSelection() && isActive() },
         { label: 'Archive completed sub-todo', shortcut: '\u21E7Esc', enabled: hasSelection() && isActive() },
         { label: 'Next tab', shortcut: '\u2318\u21E7]',
-          run: () => { const t = ['active','completed','break']; switchTab(t[(t.indexOf(currentTab)+1)%t.length]); }, enabled: true },
+          run: () => { const t = ['active','completed','pomodoro']; switchTab(t[(t.indexOf(currentTab)+1)%t.length]); }, enabled: true },
         { label: 'Previous tab', shortcut: '\u2318\u21E7[',
-          run: () => { const t = ['active','completed','break']; switchTab(t[(t.indexOf(currentTab)-1+t.length)%t.length]); }, enabled: true },
+          run: () => { const t = ['active','completed','pomodoro']; switchTab(t[(t.indexOf(currentTab)-1+t.length)%t.length]); }, enabled: true },
         { label: 'Show commands', shortcut: '\u2318K', run: () => openPalette(), enabled: true },
       ];
     }
@@ -1849,7 +1853,7 @@
       }
 
       // Cmd+Shift+] → next tab, Cmd+Shift+[ → previous tab (always works)
-      const tabOrder = ['active', 'completed', 'break'];
+      const tabOrder = ['active', 'completed', 'pomodoro'];
       if (e.metaKey && e.shiftKey && e.key === ']') {
         e.preventDefault();
         const idx = tabOrder.indexOf(currentTab);
