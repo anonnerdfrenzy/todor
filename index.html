@@ -518,6 +518,44 @@
     }
 
     .pomo-controls button.primary:hover { background: #007700; }
+
+    .pomo-mode-toggle {
+      display: flex;
+      gap: 4px;
+      background: #0f3460;
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .pomo-mode-toggle button {
+      background: transparent;
+      border: none;
+      color: #8899aa;
+      border-radius: 6px;
+      padding: 6px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .pomo-mode-toggle button:hover { color: #e0e0e0; }
+    .pomo-mode-toggle button.selected {
+      background: #1a4a8a;
+      color: white;
+    }
+
+    .pomo-phase {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .pomo-phase.focus { color: #009900; }
+    .pomo-phase.breakp { color: #f5c542; }
+
+    .pomo-cyclecount {
+      font-size: 13px;
+      color: #667;
+      letter-spacing: 0.5px;
+    }
   </style>
 </head>
 <body>
@@ -556,11 +594,20 @@
     let todayOnlyMode = false;
 
     // Pomodoro timer state
-    let pomoSeconds = 10 * 60; // default 10 min
+    let pomoSeconds = 10 * 60; // default 10 min (single-timer mode)
     let pomoRemaining = 0;
     let pomoRunning = false;
     let pomoInterval = null;
     let pomoPreset = 10;
+
+    // Cycle-mode state
+    let pomoMode = 'single'; // 'single' | 'cycle'
+    let pomoFocusSeconds = 25 * 60;
+    let pomoBreakSeconds = 5 * 60;
+    let pomoFocusInputVal = '25m';
+    let pomoBreakInputVal = '5m';
+    let pomoPhase = 'focus'; // 'focus' | 'break' (only meaningful in cycle mode)
+    let pomoCycleCount = 0;  // completed focus sessions in current run
 
     function load() {
       try { todos = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')); } catch { todos = []; }
@@ -627,6 +674,15 @@
       }
       if (pomoRunning) {
         const time = fmtTime(pomoRemaining);
+        if (pomoMode === 'cycle') {
+          if (pomoPhase === 'break') {
+            return 'Break \u2014 ' + time;
+          }
+          // focus phase
+          if (taskText) return taskText + ' \u2014 ' + time;
+          return 'Focus \u2014 ' + time;
+        }
+        // single mode
         if (taskText) return taskText + ' \u2014 ' + time;
         return 'Pomodoro \u2014 ' + time;
       }
@@ -685,22 +741,54 @@
     }
 
     function renderPomoTab() {
-      const display = pomoRunning ? fmtTime(pomoRemaining) : fmtTime(pomoSeconds);
       let html = '<div class="pomo-container">';
-      html += '<div class="pomo-time' + (pomoRunning ? ' running' : '') + '">' + display + '</div>';
-      if (!pomoRunning) {
-        html += '<div style="display:flex;gap:8px;align-items:center">';
-        html += '<input type="text" id="pomoInput" placeholder="e.g. 5, 1h30m, 90m" value="' + pomoInputVal + '" style="background:#1a1a2e;border:1px solid #0f3460;border-radius:6px;padding:8px 12px;color:#e0e0e0;font-size:16px;width:180px;text-align:center;outline:none;" oninput="onPomoInput(this.value)" onkeydown="if(event.key===\'Enter\'||event.metaKey&&event.key===\'Enter\'){event.preventDefault();startPomo()}">';
-        html += '</div>';
-        html += '<div class="pomo-presets">';
-        [5, 10, 15, 25, 30, 60].forEach(m => {
-          html += '<button onclick="setPomoPreset(' + m + ')">' + (m >= 60 ? (m/60) + 'h' : m + 'm') + '</button>';
-        });
-        html += '</div>';
+
+      // Mode toggle
+      html += '<div class="pomo-mode-toggle">';
+      html += '<button class="' + (pomoMode === 'single' ? 'selected' : '') + '" onclick="setPomoMode(\'single\')">Single</button>';
+      html += '<button class="' + (pomoMode === 'cycle' ? 'selected' : '') + '" onclick="setPomoMode(\'cycle\')">Cycle</button>';
+      html += '</div>';
+
+      if (pomoMode === 'cycle') {
+        // Phase label
+        const phaseLabel = pomoPhase === 'focus' ? 'Focus' : 'Break';
+        const phaseClass = pomoPhase === 'focus' ? 'focus' : 'breakp';
+        html += '<div class="pomo-phase ' + phaseClass + '">' + phaseLabel + '</div>';
+        // Display time
+        const display = pomoRunning ? fmtTime(pomoRemaining) : fmtTime(pomoPhase === 'focus' ? pomoFocusSeconds : pomoBreakSeconds);
+        html += '<div class="pomo-time' + (pomoRunning ? ' running' : '') + '">' + display + '</div>';
+        if (pomoRunning) {
+          html += '<div class="pomo-cyclecount">Round ' + (pomoCycleCount + (pomoPhase === 'break' ? 0 : 1)) + '</div>';
+        } else {
+          html += '<div style="display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap;">';
+          html += '<label style="display:flex;flex-direction:column;gap:4px;align-items:center;"><span style="font-size:11px;color:#889;text-transform:uppercase;letter-spacing:0.8px;">Focus</span>';
+          html += '<input type="text" value="' + pomoFocusInputVal + '" oninput="onPomoFocusInput(this.value)" style="background:#1a1a2e;border:1px solid #0f3460;border-radius:6px;padding:6px 10px;color:#e0e0e0;font-size:14px;width:80px;text-align:center;outline:none;"></label>';
+          html += '<label style="display:flex;flex-direction:column;gap:4px;align-items:center;"><span style="font-size:11px;color:#889;text-transform:uppercase;letter-spacing:0.8px;">Break</span>';
+          html += '<input type="text" value="' + pomoBreakInputVal + '" oninput="onPomoBreakInput(this.value)" style="background:#1a1a2e;border:1px solid #0f3460;border-radius:6px;padding:6px 10px;color:#e0e0e0;font-size:14px;width:80px;text-align:center;outline:none;"></label>';
+          html += '</div>';
+        }
+      } else {
+        // Single mode
+        const display = pomoRunning ? fmtTime(pomoRemaining) : fmtTime(pomoSeconds);
+        html += '<div class="pomo-time' + (pomoRunning ? ' running' : '') + '">' + display + '</div>';
+        if (!pomoRunning) {
+          html += '<div style="display:flex;gap:8px;align-items:center">';
+          html += '<input type="text" id="pomoInput" placeholder="e.g. 5, 1h30m, 90m" value="' + pomoInputVal + '" style="background:#1a1a2e;border:1px solid #0f3460;border-radius:6px;padding:8px 12px;color:#e0e0e0;font-size:16px;width:180px;text-align:center;outline:none;" oninput="onPomoInput(this.value)" onkeydown="if(event.key===\'Enter\'||event.metaKey&&event.key===\'Enter\'){event.preventDefault();startPomo()}">';
+          html += '</div>';
+          html += '<div class="pomo-presets">';
+          [5, 10, 15, 25, 30, 60].forEach(m => {
+            html += '<button onclick="setPomoPreset(' + m + ')">' + (m >= 60 ? (m/60) + 'h' : m + 'm') + '</button>';
+          });
+          html += '</div>';
+        }
       }
+
       html += '<div class="pomo-controls">';
       if (pomoRunning) {
         html += '<button class="primary" onclick="stopPomo()">Stop</button>';
+        if (pomoMode === 'cycle') {
+          html += '<button onclick="skipPomoPhase()">Skip phase</button>';
+        }
       } else {
         html += '<button class="primary" onclick="startPomo()">Start</button>';
       }
@@ -708,6 +796,46 @@
       html += '</div>';
       html += '</div>';
       return html;
+    }
+
+    function setPomoMode(mode) {
+      if (pomoRunning) return;
+      pomoMode = mode;
+      pomoPhase = 'focus';
+      pomoCycleCount = 0;
+      render();
+    }
+
+    function onPomoFocusInput(val) {
+      pomoFocusInputVal = val;
+      const secs = parsePomoInput(val);
+      if (secs > 0) pomoFocusSeconds = secs;
+    }
+
+    function onPomoBreakInput(val) {
+      pomoBreakInputVal = val;
+      const secs = parsePomoInput(val);
+      if (secs > 0) pomoBreakSeconds = secs;
+    }
+
+    function skipPomoPhase() {
+      if (!pomoRunning || pomoMode !== 'cycle') return;
+      advancePomoPhase();
+      if (currentTab === 'pomodoro') render();
+      updateMenuBar();
+    }
+
+    function advancePomoPhase() {
+      if (pomoPhase === 'focus') {
+        pomoCycleCount++;
+        pomoPhase = 'break';
+        pomoRemaining = pomoBreakSeconds;
+        try { new Notification('Break time', { body: fmtTime(pomoBreakSeconds) + ' break' }); } catch {}
+      } else {
+        pomoPhase = 'focus';
+        pomoRemaining = pomoFocusSeconds;
+        try { new Notification('Back to focus', { body: 'Round ' + (pomoCycleCount + 1) }); } catch {}
+      }
     }
 
     let pomoInputVal = '10m';
@@ -752,16 +880,26 @@
 
     function startPomo() {
       if (pomoRunning) return;
-      if (pomoRemaining <= 0) pomoRemaining = pomoSeconds;
+      if (pomoMode === 'cycle') {
+        // Starting a fresh run: always begin in focus phase
+        pomoPhase = 'focus';
+        pomoCycleCount = 0;
+        pomoRemaining = pomoFocusSeconds;
+      } else {
+        if (pomoRemaining <= 0) pomoRemaining = pomoSeconds;
+      }
       pomoRunning = true;
       render();
       pomoInterval = setInterval(() => {
         pomoRemaining--;
         if (pomoRemaining <= 0) {
-          pomoRemaining = 0;
-          stopPomo();
-          // Notify pomodoro is done
-          new Notification('Time\u2019s up!', { body: 'Pomodoro finished.' });
+          if (pomoMode === 'cycle') {
+            advancePomoPhase();
+          } else {
+            pomoRemaining = 0;
+            stopPomo();
+            try { new Notification('Time\u2019s up!', { body: 'Pomodoro finished.' }); } catch {}
+          }
         }
         updateMenuBar();
         if (currentTab === 'pomodoro') render();
@@ -771,12 +909,18 @@
     function stopPomo() {
       pomoRunning = false;
       if (pomoInterval) { clearInterval(pomoInterval); pomoInterval = null; }
+      // Reset cycle state on stop so next start begins fresh
+      if (pomoMode === 'cycle') {
+        pomoPhase = 'focus';
+        pomoCycleCount = 0;
+        pomoRemaining = pomoFocusSeconds;
+      }
       render();
     }
 
     function resetPomo() {
       stopPomo();
-      pomoRemaining = pomoSeconds;
+      if (pomoMode !== 'cycle') pomoRemaining = pomoSeconds;
       render();
     }
 
