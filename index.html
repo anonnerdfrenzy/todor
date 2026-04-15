@@ -628,6 +628,7 @@
     let notesOpenIds = new Set();
     let currentTab = 'active';
     let selectedPath = null; // dot-path string of selected todo, null = none
+    let lastActiveSelectedPath = null; // persists across tab switches for menu bar
     let todayOnlyMode = false;
 
     // Pomodoro timer state
@@ -714,22 +715,26 @@
 
     function menuBarText() {
       let taskText = null;
-      if (selectedPath !== null && currentTab === 'active') {
-        try { taskText = getByPath(selectedPath).node.text; } catch {}
+      // Prefer current-tab selection on active; fall back to last-known active selection
+      const pathForTask = (currentTab === 'active' && selectedPath !== null)
+        ? selectedPath
+        : lastActiveSelectedPath;
+      if (pathForTask !== null) {
+        try { taskText = getByPath(pathForTask).node.text; } catch {}
       }
       if (pomoRunning) {
         const time = fmtTime(pomoRemaining);
         if (pomoMode === 'cycle') {
           if (pomoPhase === 'break') {
-            return 'Break \u2014 ' + time;
+            return time + ' \u2014 Break';
           }
           // focus phase
-          if (taskText) return taskText + ' \u2014 ' + time;
-          return 'Focus \u2014 ' + time;
+          if (taskText) return time + ' \u2014 ' + taskText;
+          return time + ' \u2014 Focus';
         }
         // single mode
-        if (taskText) return taskText + ' \u2014 ' + time;
-        return 'Pomodoro \u2014 ' + time;
+        if (taskText) return time + ' \u2014 ' + taskText;
+        return time + ' \u2014 Pomodoro';
       }
       return taskText;
     }
@@ -779,6 +784,11 @@
       if (selectedPath !== null) {
         const sel = document.querySelector('.todo-row.selected');
         if (sel) sel.scrollIntoView({ block: 'nearest' });
+      }
+
+      // Remember the active-tab selection so it can be used from other tabs (menu bar)
+      if (currentTab === 'active' && selectedPath !== null) {
+        lastActiveSelectedPath = selectedPath;
       }
 
       // Write selection to file for menu bar app
