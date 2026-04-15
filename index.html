@@ -637,9 +637,17 @@
       function walk(items, prefix) {
         items.forEach((item, i) => {
           const p = prefix.length ? prefix + '.' + i : '' + i;
-          paths.push({ path: p, id: item.id });
-          if (item.children && item.children.length > 0 && expandedIds.has(item.id)) {
-            walk(item.children, p);
+          if (todayOnlyMode) {
+            if (typeof hasTodayDescendant !== 'function' || !hasTodayDescendant(item)) return;
+            if (item.today) paths.push({ path: p, id: item.id });
+            if (item.children && item.children.length > 0) {
+              walk(item.children, p); // always descend in today mode
+            }
+          } else {
+            paths.push({ path: p, id: item.id });
+            if (item.children && item.children.length > 0 && expandedIds.has(item.id)) {
+              walk(item.children, p);
+            }
           }
         });
       }
@@ -2026,11 +2034,13 @@
       // Cmd+Shift+C → start a new pomodoro cycle (or stop running timer)
       if (e.metaKey && e.shiftKey && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
+        console.log('Cmd+Shift+C fired. pomoRunning=', pomoRunning, 'mode=', pomoMode);
         if (pomoRunning) {
           stopPomo();
         } else {
           pomoMode = 'cycle';
           startPomo();
+          if (currentTab !== 'pomodoro') switchTab('pomodoro');
         }
         return;
       }
