@@ -1442,7 +1442,9 @@
       const input = document.getElementById('newTodo');
       const text = input.value.trim();
       if (!text) return;
-      todos.push({ id: genId(), text, completed: false, notes: '', created: new Date().toISOString(), children: [] });
+      const todo = { id: genId(), text, completed: false, notes: '', created: new Date().toISOString(), children: [] };
+      if (todayOnlyMode) todo.today = true;
+      todos.push(todo);
       input.value = '';
       saveTodos();
       render();
@@ -1657,7 +1659,9 @@
       const text = inputEl.value.trim();
       if (!text) return;
       const { node } = getByPath(parentPath);
-      node.children.push({ id: genId(), text, completed: false, notes: '', created: new Date().toISOString(), children: [] });
+      const sub = { id: genId(), text, completed: false, notes: '', created: new Date().toISOString(), children: [] };
+      if (todayOnlyMode) sub.today = true;
+      node.children.push(sub);
       expandedIds.add(parentId);
       saveTodos();
       const subAdd = inputEl.closest('.sub-add');
