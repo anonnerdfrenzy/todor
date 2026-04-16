@@ -48,9 +48,6 @@ if (!gotLock) {
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,
-        // Keep the Pomodoro setInterval ticking accurately even when the
-        // window isn't focused or is fully hidden behind other apps.
-        backgroundThrottling: false,
       },
     });
 
@@ -263,6 +260,15 @@ python3 "${cliPath}" remove 0                          # Remove (DESTRUCTIVE)
 
   // Renderer asks for the data directory at startup
   ipcMain.on('get-data-dir', (e) => { e.returnValue = DATA_DIR; });
+
+  // Renderer toggles backgroundThrottling: off while a Pomodoro is running so
+  // setInterval stays accurate when the app is unfocused; back on otherwise to
+  // save battery.
+  ipcMain.on('set-throttling', (e, allowed) => {
+    if (mainWin && !mainWin.isDestroyed()) {
+      try { mainWin.webContents.setBackgroundThrottling(!!allowed); } catch {}
+    }
+  });
 
   // Renderer pushes the menu-bar title whenever it changes
   ipcMain.on('tray-title', (e, text) => {

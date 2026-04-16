@@ -1010,6 +1010,9 @@
         if (pomoRemaining <= 0) pomoRemaining = pomoSeconds;
       }
       pomoRunning = true;
+      // Disable Chromium's background timer throttling so the countdown
+      // stays accurate when Todor isn't focused.
+      try { ipcRenderer.send('set-throttling', false); } catch {}
       render();
       pomoInterval = setInterval(() => {
         pomoRemaining--;
@@ -1036,6 +1039,8 @@
         pomoCycleCount = 0;
         pomoRemaining = pomoFocusSeconds;
       }
+      // Re-enable background throttling — no timer running, save battery.
+      try { ipcRenderer.send('set-throttling', true); } catch {}
       render();
     }
 
