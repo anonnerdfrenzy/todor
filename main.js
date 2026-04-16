@@ -48,6 +48,9 @@ if (!gotLock) {
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,
+        // Keep the Pomodoro setInterval ticking accurately even when the
+        // window isn't focused or is fully hidden behind other apps.
+        backgroundThrottling: false,
       },
     });
 
