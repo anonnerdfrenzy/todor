@@ -82,6 +82,65 @@ if (!gotLock) {
     return candidates.find(p => p && fs.existsSync(p));
   }
 
+  // ===== Update check =====
+  // We can't do silent auto-updates without code signing, so on launch (and at
+  // most once every 6 hours), poll GitHub Releases. If a newer version exists,
+  // show a dialog with a button that opens the release page in the browser.
+  const RELEASES_API = 'https://api.github.com/repos/anonnerdfrenzy/todor/releases/latest';
+  const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+  function semverGreater(a, b) {
+    const pa = a.split('.').map((n) => parseInt(n, 10));
+    const pb = b.split('.').map((n) => parseInt(n, 10));
+    for (let i = 0; i < 3; i++) {
+      if ((pa[i] || 0) > (pb[i] || 0)) return true;
+      if ((pa[i] || 0) < (pb[i] || 0)) return false;
+    }
+    return false;
+  }
+
+  async function checkForUpdates({ silent = true } = {}) {
+    if (!DATA_DIR) return;
+    const stampPath = path.join(DATA_DIR, 'update-check.json');
+    if (silent) {
+      try {
+        const last = JSON.parse(fs.readFileSync(stampPath, 'utf-8')).t || 0;
+        if (Date.now() - last < UPDATE_CHECK_INTERVAL_MS) return;
+      } catch {}
+    }
+    try {
+      const res = await fetch(RELEASES_API, { headers: { Accept: 'application/vnd.github+json' } });
+      if (!res.ok) return;
+      const data = await res.json();
+      try { fs.writeFileSync(stampPath, JSON.stringify({ t: Date.now() })); } catch {}
+      const latest = (data.tag_name || '').replace(/^v/, '');
+      const current = app.getVersion();
+      if (!latest) return;
+      if (!semverGreater(latest, current)) {
+        if (!silent) {
+          dialog.showMessageBox({
+            type: 'info',
+            title: 'Todor',
+            message: 'You\u2019re on the latest version (' + current + ').',
+          });
+        }
+        return;
+      }
+      const choice = await dialog.showMessageBox({
+        type: 'info',
+        title: 'Update available',
+        message: 'Todor ' + latest + ' is available.',
+        detail: 'You\u2019re on ' + current + '. Open the release page to download the new .dmg.',
+        buttons: ['Download', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      if (choice.response === 0) {
+        shell.openExternal(data.html_url || ('https://github.com/anonnerdfrenzy/todor/releases/tag/v' + latest));
+      }
+    } catch {}
+  }
+
   function showClaudeSetup() {
     const cliPath = getCliPath();
     if (!cliPath) {
@@ -192,6 +251,7 @@ python3 "${cliPath}" remove 0                          # Remove (DESTRUCTIVE)
           },
           { type: 'separator' },
           { label: 'Setup Claude Code\u2026', click: showClaudeSetup },
+          { label: 'Check for Updates\u2026', click: () => checkForUpdates({ silent: false }) },
         ],
       },
     ];
@@ -256,6 +316,9 @@ python3 "${cliPath}" remove 0                          # Remove (DESTRUCTIVE)
     buildAppMenu();
     createTray();
     createWindow();
+    // Run a silent update check 5s after launch — won't show anything unless
+    // a newer release exists and we haven't checked in the last 6 hours.
+    setTimeout(() => { checkForUpdates({ silent: true }); }, 5000);
   });
 
   app.on('activate', () => {

@@ -1,6 +1,6 @@
 {
   "name": "todor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "main.js",
   "description": "A menu bar todo + pomodoro app for macOS",
   "author": "brangus",
