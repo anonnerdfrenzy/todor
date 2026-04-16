@@ -656,6 +656,38 @@
     // file-watch reloads that reassign `todos` don't orphan us.
     let editState = null; // { parentPath, idx, originalNode, isSub }
 
+    // ===== Undo =====
+    // Snapshot stack of (todos, completed, selectedPath). Mutations call
+    // pushUndo() *before* changing state. Cmd+Z restores the most recent.
+    const UNDO_LIMIT = 50;
+    let undoStack = [];
+
+    function pushUndo() {
+      undoStack.push({
+        todos: JSON.parse(JSON.stringify(todos)),
+        completed: JSON.parse(JSON.stringify(completed)),
+        selectedPath,
+      });
+      if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    }
+
+    function undo() {
+      const snap = undoStack.pop();
+      if (!snap) return false;
+      todos = snap.todos;
+      completed = snap.completed;
+      selectedPath = snap.selectedPath;
+      // Cancel any in-progress edit so its UI doesn't linger
+      editState = null;
+      const newInput = document.getElementById('newTodo');
+      if (newInput) newInput.value = '';
+      const subAdd = document.querySelector('.sub-add');
+      if (subAdd) subAdd.remove();
+      save();
+      render();
+      return true;
+    }
+
     function editParentList() {
       if (!editState) return null;
       if (!editState.parentPath) return todos;
@@ -1434,6 +1466,7 @@
     }
 
     function toggleToday(pathStr) {
+      pushUndo();
       const { node } = getByPath(pathStr);
       if (node.today) {
         delete node.today;
@@ -1489,6 +1522,7 @@
         { label: 'Previous tab', shortcut: '\u2318\u21E7[',
           run: () => { const t = ['active','completed','pomodoro']; switchTab(t[(t.indexOf(currentTab)-1+t.length)%t.length]); }, enabled: true },
         { label: 'Show commands', shortcut: '\u2318K', run: () => openPalette(), enabled: true },
+        { label: 'Undo last action', shortcut: '\u2318Z', run: () => undo(), enabled: undoStack.length > 0 },
       ];
     }
 
@@ -1566,6 +1600,7 @@
         }
         editState = null;
       }
+      pushUndo();
       const todo = { id: genId(), text, completed: false, notes: '', created: new Date().toISOString(), children: [] };
       if (todayOnlyMode) todo.today = true;
       todos.push(todo);
@@ -1602,6 +1637,7 @@
     }
 
     function toggleComplete(pathStr) {
+      pushUndo();
       const { node, list, idx, isTopLevel } = getByPath(pathStr);
 
       if (node.completed) {
@@ -1747,6 +1783,7 @@
     });
 
     function removeTodo(pathStr) {
+      pushUndo();
       const visible = getVisiblePaths();
       const visIdx = visible.findIndex(v => v.path === pathStr);
       const { list, idx } = getByPath(pathStr);
@@ -1825,6 +1862,7 @@
         }
         editState = null;
       }
+      pushUndo();
       const sub = { id: genId(), text, completed: false, notes: '', created: new Date().toISOString(), children: [] };
       if (todayOnlyMode) sub.today = true;
       node.children.push(sub);
@@ -2121,6 +2159,7 @@
       const rect = el.getBoundingClientRect();
       const dropAbove = e.clientY < rect.top + rect.height / 2;
 
+      pushUndo();
       // Remove dragged item
       const [item] = list.splice(dragIdx, 1);
 
@@ -2143,6 +2182,17 @@
         e.preventDefault();
         if (paletteOpen) closePalette(); else openPalette();
         return;
+      }
+
+      // Cmd+Z → undo last app action (only when not typing in an input —
+      // browsers handle text undo natively in inputs/textareas)
+      if (e.metaKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+        const tag = document.activeElement.tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+          e.preventDefault();
+          undo();
+          return;
+        }
       }
 
       // Palette-level handling: intercept keys while palette is open
@@ -2342,6 +2392,7 @@
         const list = parentPath === '' ? todos : getByPath(parentPath).node.children;
         const newIdx = e.key === 'ArrowDown' ? idx + 1 : idx - 1;
         if (newIdx >= 0 && newIdx < list.length) {
+          pushUndo();
           const [item] = list.splice(idx, 1);
           list.splice(newIdx, 0, item);
           // Update selectedPath to follow the moved item
@@ -2449,6 +2500,7 @@
       // Cmd+E - edit selected todo: move text to appropriate add bar
       if ((e.key === 'e' || e.key === 'E') && e.metaKey && !e.shiftKey) {
         e.preventDefault();
+        pushUndo();
         const parts = selectedPath.split('.');
         const isTopLevel = parts.length === 1;
         const { node, list, idx } = getByPath(selectedPath);
